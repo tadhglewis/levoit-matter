@@ -1,0 +1,50 @@
+menu "Levoit purifier"
+
+    choice LEVOIT_MODEL
+        prompt "Model"
+        default LEVOIT_MODEL_CORE300S
+
+        config LEVOIT_MODEL_CORE200S
+            bool "Core 200S"
+        config LEVOIT_MODEL_CORE300S
+            bool "Core 300S"
+        config LEVOIT_MODEL_CORE400S
+            bool "Core 400S"
+        config LEVOIT_MODEL_CORE600S
+            bool "Core 600S"
+    endchoice
+
+    config LEVOIT_UART_TX_GPIO
+        int "GPIO wired to the purifier controller's RX"
+        default 16 if LEVOIT_MODEL_CORE200S
+        default 17
+        help
+            The Core 200S uses 16. The Core 200S-P (hardware version 2.0) uses 17.
+
+    config LEVOIT_UART_RX_GPIO
+        int "GPIO wired to the purifier controller's TX"
+        default 17 if LEVOIT_MODEL_CORE200S
+        default 16
+        help
+            The Core 200S uses 17. The Core 200S-P (hardware version 2.0) uses 16.
+
+    config LEVOIT_SETUP_PASSCODE
+        int "Matter setup passcode"
+        range 1 99999998
+        default 20202021
+        help
+            20202021 is the public test code. Anyone in Bluetooth range can
+            pair an unpaired purifier that uses it. Pick your own.
+
+    config LEVOIT_SETUP_DISCRIMINATOR
+        int "Matter setup discriminator"
+        range 0 4095
+        default 3840
+
+    config LEVOIT_OTA_TOKEN
+        string "Token for updates over Wi-Fi"
+        default ""
+        help
+            Bearer token for POST /ota. Empty disables updates over Wi-Fi.
+
+endmenu

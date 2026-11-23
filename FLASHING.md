@@ -1,0 +1,206 @@
+# Build and flash
+
+Written for the Levoit Core 300S on its stock ESP32-SOLO-1C. Other Core models build from the same source but have never been flashed, and their boards are wired differently. Check the pads against the [tuct/levoit device guides](https://github.com/tuct/levoit/tree/main/devices) first.
+
+**This has not run on hardware.** These steps are written from the build tooling, not from a successful flash. Expect to adjust them.
+
+Commands assume macOS and the repo root as the working directory unless a step says otherwise.
+
+## 1. One-time setup
+
+```bash
+git clone git@github.com:tadhglewis/levoit-matter.git
+cd levoit-matter
+python3 -m venv .venv
+.venv/bin/pip install esptool
+```
+
+`esptool` is used below for the backup.
+
+The build needs ESP-IDF 5.5.6. Install it the way [Espressif documents](https://docs.espressif.com/projects/esp-idf/en/v5.5.6/esp32/get-started/index.html), run its `export.sh`, and use `idf.py` wherever these steps say `idf`.
+
+If ESPHome 2026.11.0 has compiled an ESP32 project on this machine, that toolchain is already in `~/Library/Caches/esphome/idf`. `source env.sh` points at it and defines the `idf` command, so nothing else needs installing.
+
+## 2. Wire the purifier
+
+You need a 3.3 V USB serial adapter. Do not use 5 V.
+
+Keep the purifier unplugged from the wall the whole time the case is open. The board is powered from the adapter.
+
+1. Unplug the purifier.
+2. Remove the base cover and filter, then the eight screws underneath. Separate the base from the sleeve and unplug the logic board. Photos are in the [tuct/levoit Core 300S guide](https://github.com/tuct/levoit/tree/main/devices/levoit-core300s).
+3. Solder or clip wires to the pads next to the ESP32 module:
+
+| Board pad | Adapter |
+|---|---|
+| `TXD0` | RX |
+| `RXD0` | TX |
+| `GND` | GND |
+| `+3V3` | 3.3 V |
+| `IO0` | GND, only while powering on |
+
+4. Hold `IO0` to ground, connect the adapter to USB, then release `IO0`. The chip is now in its bootloader.
+5. Find the port:
+
+```bash
+ls /dev/cu.usbserial-* /dev/cu.wchusbserial-* 2>/dev/null
+```
+
+The steps below call it `$PORT`:
+
+```bash
+export PORT=/dev/cu.usbserial-XXXX
+```
+
+Every flashing command needs the chip in its bootloader. If a command cannot connect, repeat step 4.
+
+## 3. Back up the stock firmware
+
+Do this once, before anything else. It is the only way back to VeSync.
+
+```bash
+.venv/bin/esptool --port $PORT flash-id
+.venv/bin/esptool --port $PORT read-flash 0 ALL stock-backup.bin
+```
+
+`flash-id` must report a 4 MB flash. If it does not, stop: the partition tables here assume 4 MB.
+
+Keep two copies of `stock-backup.bin` somewhere that is not this laptop.
+
+To restore the stock firmware later:
+
+```bash
+.venv/bin/esptool --port $PORT erase-flash
+.venv/bin/esptool --port $PORT write-flash 0x0 stock-backup.bin
+```
+
+## 4. Build
+
+```bash
+cp sdkconfig.local.example sdkconfig.local
+```
+
+Edit `sdkconfig.local`:
+
+| Setting | Rule |
+|---|---|
+| `CONFIG_LEVOIT_MODEL_CORE300S=y` | Or `CORE200S`, `CORE400S`, `CORE600S`. |
+| `CONFIG_LEVOIT_SETUP_PASSCODE` | 1 to 99999998. Not 11111111, 12345678 or similar. Pick your own. |
+| `CONFIG_LEVOIT_SETUP_DISCRIMINATOR` | 0 to 4095 |
+| `CONFIG_LEVOIT_OTA_TOKEN` | Any long random string. Empty disables updates over Wi-Fi. |
+
+Build and test:
+
+```bash
+source env.sh
+idf build
+./components/levoit/host_test/run.sh
+```
+
+The first build takes about 15 minutes. Expect about 1.48 MB and `155 checks, 0 failures`.
+
+These are ordinary Kconfig options. `sdkconfig.local` only seeds them, so a change to it after the first build is ignored until you delete `sdkconfig`. Or skip the file and set them with `idf menuconfig`, under "Levoit purifier". The UART pins are there too. They default per model.
+
+`source env.sh` is needed once per terminal, if you use it.
+
+## 5. Flash
+
+With the chip in its bootloader:
+
+```bash
+idf -p $PORT flash monitor
+```
+
+Exit the monitor with `Ctrl-]`.
+
+To flash without the build tools, the four files and offsets are:
+
+```bash
+cd build
+../.venv/bin/esptool --port $PORT write-flash \
+  0x1000 bootloader/bootloader.bin \
+  0x8000 partition_table/partition-table.bin \
+  0x9000 ota_data_initial.bin \
+  0x20000 levoit_matter.bin
+```
+
+## 6. Pair
+
+The log prints:
+
+```
+[pairing] QR code: MT:...
+[pairing] QR image: https://project-chip.github.io/connectedhomeip/qrcode.html?data=MT:...
+[pairing] manual code: ...........
+```
+
+Open the image link, then in Apple Home choose Add Accessory, scan it, and accept the uncertified accessory prompt. The phone sends Wi-Fi credentials over Bluetooth.
+
+The code comes from your build settings, so it stays the same across reflashes and factory resets. Print it and stick it on the purifier.
+
+## 7. Update over Wi-Fi
+
+```bash
+source env.sh
+idf build
+./tools/ota.sh <device-ip> <token from sdkconfig.local>
+```
+
+The purifier reboots into the new image. If Wi-Fi and the purifier link do not both come up within two minutes, it reboots back into the old one.
+
+## 8. Factory reset
+
+Tap the Display Off button six times within fifteen seconds, about one tap a second. This clears Matter pairing and Wi-Fi and reboots into pairing mode.
+
+Removing the purifier from the last controller does the same thing.
+
+If that fails, erase over serial and flash again:
+
+```bash
+.venv/bin/esptool --port $PORT erase-flash
+```
+
+## 9. First boot checklist
+
+Do these with the case still open and the serial cable on. Save the whole log from the first pairing attempt, whatever happens.
+
+| # | Check | What it tells you |
+|---|---|---|
+| 1 | `heap free=... min=...`, printed every 60 seconds | `min` during pairing decides whether the stock chip is viable. Below about 10,000 is trouble. |
+| 2 | Does the purifier keep repeating identical status frames? | It is not accepting our acknowledgement. Set `status_ack_alt` for your model in `components/levoit/src/levoit_core.cpp`. |
+| 3 | `no ack for command` | The purifier is not acknowledging commands. Retry timing needs tuning. |
+| 4 | `no ack for command 013140` every five seconds, and nothing else | The purifier does not answer status requests. Survivable: state then only refreshes when something changes. |
+| 5 | `filter degradation direction=1` | Correct. 0 means the filter will read backwards. |
+| 6 | The first status frame, logged in hex | On the 300S and 400S, byte 17 is an error field nobody has decoded. Note its value. |
+| 7 | The reset gesture | Tap steadily, about once a second. Test it before closing the case. |
+
+## Bench testing without the purifier
+
+`tools/mcu_sim.py` pretends to be the purifier's controller. Wire a USB serial adapter to a classic ESP32 dev board: adapter TX to GPIO16, adapter RX to GPIO17, grounds together.
+
+```bash
+pip install pyserial
+./tools/mcu_sim.py /dev/cu.usbserial-XXXX --model 300s
+```
+
+It answers commands and status requests, sends status when something changes, and takes panel presses from the keyboard. `--help` lists flags for the open protocol questions.
+
+## Switching to or from another firmware
+
+Flash over serial, and erase first:
+
+```bash
+.venv/bin/esptool --port $PORT erase-flash
+```
+
+Other firmwares store Wi-Fi and Matter data differently, and erasing avoids one reading the other's leftovers. You will need to pair again. Moving between firmwares over Wi-Fi is untested. Do not try it on a closed unit.
+
+## Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| `Failed to connect to ESP32` | Not in the bootloader. Hold `IO0` to ground while powering on. |
+| Boot loop mentioning `single core` | Built without single-core mode. The config sets it, so this means a stale build folder. Delete `build` and `sdkconfig`. |
+| Brownout resets | The adapter cannot supply enough current on its 3.3 V pin. Use one rated for 500 mA or a separate 3.3 V supply with a shared ground. |
+| `idf: command not found` | Run `source env.sh` in the repo root, or use `idf.py` from a standard ESP-IDF install. |
+| `IDF_PATH` errors | `env.sh` found no ESPHome toolchain cache. Install ESP-IDF 5.5.6 as in section 1. |
