@@ -6,8 +6,22 @@ How the firmware works and why it is built this way. Nothing here has been confi
 
 One ESP-IDF application on Espressif's Matter SDK (`espressif/esp_matter` 1.6.1, ESP-IDF 5.5.6). It runs on the purifier's stock ESP32-SOLO-1C and talks to the purifier's own controller over a serial line. The controller keeps running the fan, the buttons and the display. This firmware only replaces the Wi-Fi side.
 
-```
-purifier controller <-- UART --> levoit component --> purifier coordinator --> Matter --> Apple Home
+```mermaid
+flowchart LR
+    subgraph Purifier
+        MCU[Purifier controller<br/>fan, buttons, display]
+        subgraph ESP32[ESP32, this firmware]
+            Levoit[levoit component<br/>UART protocol]
+            Coord[Purifier coordinator]
+            Matter[Matter endpoints]
+        end
+    end
+    Home[Apple Home]
+
+    MCU <-->|UART| Levoit
+    Levoit <--> Coord
+    Coord <--> Matter
+    Matter <-->|Matter over Wi-Fi| Home
 ```
 
 ## Why native, not ESPHome or HomeKit
@@ -41,6 +55,28 @@ purifier controller <-- UART --> levoit component --> purifier coordinator --> M
 | `main/commissionable_data` | Supplies the setup code from the build settings. |
 
 Two tasks do the work. The UART task owns the serial port and all purifier state. The Matter task owns every cluster object. They talk through one queue in each direction, so neither touches the other's data.
+
+```mermaid
+sequenceDiagram
+    participant Home as Apple Home
+    participant M as Matter task
+    participant U as UART task
+    participant MCU as Purifier controller
+
+    Note over Home,MCU: A change made in Apple Home
+    Home->>M: Set speed to 2
+    M->>U: Request, through a queue
+    U->>MCU: Command frame
+    MCU-->>U: Acknowledgement
+    MCU->>U: Status frame
+    U->>M: New state, scheduled on the Matter task
+    M-->>Home: Attribute report
+
+    Note over Home,MCU: A button pressed on the purifier
+    MCU->>U: Status frame
+    U->>M: New state, scheduled on the Matter task
+    M-->>Home: Attribute report
+```
 
 ## Rules the code follows
 
