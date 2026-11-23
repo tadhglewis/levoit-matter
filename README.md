@@ -67,17 +67,9 @@ Set in `sdkconfig.local` before the first build, or in `idf.py menuconfig` under
 | `CONFIG_LEVOIT_OTA_TOKEN` | empty | Empty disables updates over Wi-Fi. |
 | `CONFIG_LEVOIT_UART_TX_GPIO`, `_RX_GPIO` | Per model | Only change for a board revision with swapped pins. |
 
-## Layout
+## How it works
 
-| Path | What |
-|---|---|
-| `main/` | The application: Matter endpoints, the purifier coordinator, the updater, the settings menu. |
-| `components/levoit/` | The purifier protocol: framing, the model table, the UART link, value mapping, filter maths. Unit tests in `host_test/`. |
-| `tools/` | A purifier simulator for bench testing and the update script. |
-| `FLASHING.md` | Build, flash, pair, update, reset. |
-| `docs/DESIGN.md` | How it works and why it is built this way. |
-
-Size: 1.48 MB in a 1.94 MB slot. Built on `espressif/esp_matter` 1.6.1.
+One ESP-IDF application on `espressif/esp_matter` 1.6.1, 1.48 MB in a 1.94 MB slot. The purifier protocol is a separate component in `components/levoit/` with its own unit tests. [`docs/DESIGN.md`](docs/DESIGN.md) explains the design and why it is built this way.
 
 ## Related
 
