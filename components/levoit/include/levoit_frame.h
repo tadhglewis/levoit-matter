@@ -20,6 +20,8 @@ struct Frame {
   uint8_t trailer{0};
   uint8_t payload[MAX_PAYLOAD]{};
   size_t payload_len{0};
+  uint8_t raw[MAX_FRAME_LEN]{};
+  size_t raw_len{0};
 };
 
 uint8_t frame_checksum(const uint8_t *data, size_t len);

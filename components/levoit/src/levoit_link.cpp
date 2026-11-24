@@ -7,6 +7,7 @@
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <sdkconfig.h>
 
 #include <atomic>
 #include <cinttypes>
@@ -51,6 +52,25 @@ uint32_t last_bytes_ms = 0;
 
 uint32_t now_ms() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
 
+void log_frame(const char *direction, const uint8_t *data, size_t len) {
+#if CONFIG_LEVOIT_LOG_FRAMES
+  static const char DIGITS[] = "0123456789ABCDEF";
+  char text[MAX_FRAME_LEN * 3 + 1];
+  size_t at = 0;
+  for (size_t i = 0; i < len && i < MAX_FRAME_LEN; i++) {
+    text[at++] = DIGITS[data[i] >> 4];
+    text[at++] = DIGITS[data[i] & 0x0F];
+    text[at++] = ' ';
+  }
+  text[at == 0 ? 0 : at - 1] = '\0';
+  ESP_LOGI(TAG, "%s %s", direction, text);
+#else
+  (void)direction;
+  (void)data;
+  (void)len;
+#endif
+}
+
 void write_frame(uint8_t type, uint32_t command, uint8_t trailer,
                  const uint8_t *payload, size_t payload_len) {
   uint8_t frame[MAX_FRAME_LEN];
@@ -58,6 +78,7 @@ void write_frame(uint8_t type, uint32_t command, uint8_t trailer,
                             payload_len, frame, sizeof(frame));
   if (len == 0)
     return;
+  log_frame("tx", frame, len);
   int written = uart_write_bytes(UART_PORT, frame, len);
   if (written != static_cast<int>(len))
     ESP_LOGE(TAG, "uart write failed: %d of %u", written,
@@ -89,6 +110,7 @@ void write_ack(const Frame &received) {
                           received.command, alternate, frame, sizeof(frame));
   if (len == 0)
     return;
+  log_frame("tx", frame, len);
   uart_write_bytes(UART_PORT, frame, len);
   if (!alternate)
     counter = next_counter(counter);
@@ -112,6 +134,7 @@ void handle_frame(const Frame &frame) {
   uint32_t now = now_ms();
   last_frame_ms.store(now);
   frame_seen.store(true);
+  log_frame("rx", frame.raw, frame.raw_len);
 
   if (frame.type == TYPE_ACK) {
     if (awaiting_ack && frame.command == queue[queue_head].command)

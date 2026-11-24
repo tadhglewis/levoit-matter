@@ -40,4 +40,12 @@ menu "Levoit purifier"
         help
             Apple Home shows it as an unnamed outlet tile. Turn off to leave it out.
 
+    config LEVOIT_LOG_FRAMES
+        bool "Log every serial frame to and from the purifier"
+        default n
+        help
+            One hex line per frame, both directions. For working out a model or
+            controller the firmware does not understand yet. Read it with
+            tools/watch.sh. Fills the log quickly, so leave it off otherwise.
+
 endmenu

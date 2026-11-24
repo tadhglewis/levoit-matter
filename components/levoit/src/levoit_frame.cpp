@@ -96,6 +96,8 @@ bool FrameParser::next(Frame &frame) {
     frame.trailer = p[9];
     frame.payload_len = frame_len - HEADER_LEN;
     memcpy(frame.payload, p + HEADER_LEN, frame.payload_len);
+    memcpy(frame.raw, p, frame_len);
+    frame.raw_len = frame_len;
     pos += frame_len;
     found = true;
     break;
