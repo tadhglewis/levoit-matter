@@ -182,7 +182,7 @@ Offset 9 as "running speed" matches mulcmu's description of the same field in th
 | `02` | The hold registers, a few seconds after the press |
 | `03` | The button is released |
 
-A five-second hold produced `02` then `03` 0.7 seconds later. A longer one produced `02` then `03` 7.6 seconds later. The firmware resets to pairing mode when the button is still held five seconds after `02`. Whether a much longer hold produces further payloads is untested.
+A five-second hold produced `02` then `03` 0.7 seconds later. A longer one produced `02` then `03` 7.6 seconds later. The firmware resets to pairing mode when the button is still held eleven seconds after `02`, about 15 seconds from the press. Whether a much longer hold produces further payloads is untested.
 
 **Filter reset, `01 E4 A5` with payload `00`.** Sent when the Sleep button is held for three seconds, which is the reset the manual describes. tuct documents this message for the Core 200S. We confirmed this Core 300S sends it too. The controller turns its filter light off itself, and offset 10 goes back to `00`. A hold that is too short is taken as a tap and toggles Sleep. The filter symbol on the panel is an indicator, not a button, and holding it sends nothing.
 
@@ -223,7 +223,7 @@ The purifier does not report filter life. Stock firmware kept the count, so a fr
 - The attestation certificate is still the SDK's test one, so Apple Home shows the uncertified prompt. A real one needs a vendor ID.
 - Bluetooth is only used for pairing and is shut down afterwards to free memory. It cannot be restarted without a reboot.
 - That is why removing the purifier from its last controller does a full factory reset: it is the only way back to pairing mode.
-- The purifier's controller reports a long press of its Wi-Fi button as `01 02 D1`, with payload 2 when the hold registers and 3 on release. Five seconds of holding after that first message triggers a factory reset. An earlier design counted display toggles, which was easy to trigger by accident.
+- The purifier's controller reports a long press of its Wi-Fi button as `01 02 D1`, with payload 2 when the hold registers and 3 on release. Eleven seconds of holding after that first message triggers a factory reset, which is about 15 seconds from the press and matches the manual. An earlier design counted display toggles, which was easy to trigger by accident.
 - Matter's Identify command inverts the Wi-Fi light for its duration.
 
 ## Updates

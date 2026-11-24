@@ -77,7 +77,7 @@ class HoldReset {
 public:
   static constexpr uint8_t STARTED = 0x02;
   static constexpr uint8_t RELEASED = 0x03;
-  static constexpr uint32_t HOLD_MS = 5000;
+  static constexpr uint32_t HOLD_MS = 11000;
 
   void feed(uint8_t event, uint32_t now_ms);
   bool holding() const { return this->holding_; }

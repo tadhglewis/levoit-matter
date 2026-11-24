@@ -384,12 +384,12 @@ static void test_hold_reset() {
   HoldReset hold;
   CHECK(!hold.due(100000));
   hold.feed(HoldReset::STARTED, 1000);
-  CHECK(hold.holding() && !hold.due(5999));
+  CHECK(hold.holding() && !hold.due(11999));
   hold.feed(HoldReset::RELEASED, 1700);
   CHECK(!hold.holding() && !hold.due(20000));
   hold.feed(HoldReset::STARTED, 30000);
-  CHECK(!hold.due(34999) && hold.due(35000));
-  CHECK(!hold.holding() && !hold.due(36000));
+  CHECK(!hold.due(40999) && hold.due(41000));
+  CHECK(!hold.holding() && !hold.due(42000));
   hold.feed(0x09, 40000);
   CHECK(!hold.holding());
 }

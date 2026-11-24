@@ -29,7 +29,7 @@ Only the Core 300S has an owner here. If you flash another model, keep the seria
 | Sleep, Display, Child Lock | Three separate switches |
 | Pairing | Scan the QR code. The phone sends Wi-Fi over Bluetooth. |
 | Updates over Wi-Fi | Pushed from your machine. A bad image rolls itself back. |
-| Factory reset | Hold the Wi-Fi button for about ten seconds, or remove the purifier from Home. |
+| Factory reset | Hold the On/Off button for 15 seconds, as on stock firmware, or remove the purifier from Home. |
 
 Not exposed: timer, auto-mode profiles, room size, the 200S night light, the 600S light sensor. Use Home automations.
 
