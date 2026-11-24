@@ -333,7 +333,10 @@ bool create_purifier_endpoint(esp_matter::node_t *node) {
     return false;
 
   cluster::on_off::config_t power;
-  if (cluster::on_off::create(endpoint, &power, esp_matter::CLUSTER_FLAG_SERVER) == nullptr)
+  esp_matter::cluster_t *on_off =
+      cluster::on_off::create(endpoint, &power, esp_matter::CLUSTER_FLAG_SERVER);
+  if (on_off == nullptr || cluster::on_off::command::create_on(on_off) == nullptr ||
+      cluster::on_off::command::create_toggle(on_off) == nullptr)
     return false;
 
   uint8_t filter_percent = levoit::purifier_filter_percent();

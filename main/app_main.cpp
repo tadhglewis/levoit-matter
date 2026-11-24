@@ -30,6 +30,7 @@ static void log_resources() {
 
 extern "C" void app_main() {
   remote_log_install();
+  esp_log_level_set("esp_matter_attribute", ESP_LOG_WARN);
   esp_err_t err = nvs_flash_init();
   if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
     ESP_ERROR_CHECK(nvs_flash_erase());
