@@ -104,6 +104,7 @@ The ESP32 and the purifier's controller talk over UART at 115200 8N1. On the Cor
 | [tuct/levoit](https://github.com/tuct/levoit), `LEVOIT_UART.md` and the driver source | Frame format, every command we send, the status layouts for the Core 200S, 400S and 600S, the airflow ratings, and the acknowledgement it sends |
 | [tuct/levoit device captures](https://github.com/tuct/levoit/tree/main/devices) | Recordings of stock firmware on a Core 200S and 600S. The test vectors for those models come from here. |
 | [mulcmu/esphome-levoit-core300s](https://github.com/mulcmu/esphome-levoit-core300s) | The byte-by-byte Core 300S status layout, including the two display bytes and the running speed, and the status request |
+| [Levoit Core 300S user manual](https://files.vesync.com/desc/LEVOIT_Core300S_USER_MANUAL.pdf) | Which buttons do what, the air quality levels and the speed Auto runs at for each, and the filter reset |
 | This project | The items under "Found on our hardware" below, from a Core 300S whose controller reports version 1.0.0 |
 
 ### Frame
@@ -158,7 +159,7 @@ None of this is in the sources above. It was read off a Core 300S over the firmw
 | 7 | Display backlight now | `00`, `64` |
 | 8 | Display setting | `00` off, `01` on |
 | 9 | Running speed | Equals the speed in manual, `00` in auto with clean air, `FF` when off |
-| 10 | Unknown | `00` |
+| 10 | Filter light | `00` off, `01` on. Follows the `01 E2 A5` command. |
 | 11 | Air quality level, 1 best to 4 | `01` |
 | 12 to 13 | PM2.5, little endian | `01 00`, `05 00`, `07 00` |
 | 14 | Child lock | `00` |
@@ -182,6 +183,8 @@ Offset 9 as "running speed" matches mulcmu's description of the same field in th
 | `03` | The button is released |
 
 A five-second hold produced `02` then `03` 0.7 seconds later. A longer one produced `02` then `03` 7.6 seconds later. The firmware resets to pairing mode when the button is still held five seconds after `02`. Whether a much longer hold produces further payloads is untested.
+
+**Filter reset, `01 E4 A5` with payload `00`.** Sent when the Sleep button is held for three seconds, which is the reset the manual describes. tuct documents this message for the Core 200S. We confirmed this Core 300S sends it too. The controller turns its filter light off itself, and offset 10 goes back to `00`. A hold that is too short is taken as a tap and toggles Sleep. The filter symbol on the panel is an indicator, not a button, and holding it sends nothing.
 
 **Acknowledgements.** The firmware answers every message with the form tuct's driver uses: type `12`, its own counter, byte 4 set to `FF`. This controller accepts it and does not repeat itself.
 
@@ -210,7 +213,7 @@ Also observed, and worth knowing for anyone building a purifier.
 
 ## Filter life
 
-The purifier does not report filter life. The firmware counts airflow: each minute it adds the model's airflow rating scaled by the current speed, with Sleep counted as 63 percent of speed 1. Life is the share of six months at full speed that remains. The count is saved every 30 minutes and when the purifier turns off. Resetting the filter in Home, or with the purifier's own filter button where the model reports it, clears the count.
+The purifier does not report filter life. Stock firmware kept the count, so a freshly flashed purifier starts at 100% and `tools/filter.sh` sets the real figure. The firmware counts airflow: each minute it adds the model's airflow rating scaled by the current speed, with Sleep counted as 63 percent of speed 1. Life is the share of six months at full speed that remains. The count is saved every 30 minutes and when the purifier turns off. Holding the Sleep button for three seconds clears the count, as it does on stock firmware. Matter's reset command also works, but Apple Home has no button for it.
 
 ## Pairing and reset
 

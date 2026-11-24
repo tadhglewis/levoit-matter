@@ -43,7 +43,7 @@ void FilterLife::set_percent(uint8_t percent) {
   if (percent > 100)
     percent = 100;
   uint64_t capacity = static_cast<uint64_t>(this->model_.cadr_m3h) * 24 * 30 * this->months_;
-  this->used_cadr_ = static_cast<uint32_t>(capacity * (100 - percent) / 100);
+  this->used_cadr_ = static_cast<uint32_t>((capacity * (100 - percent) + 99) / 100);
   this->remainder_ = 0;
 }
 

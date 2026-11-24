@@ -430,6 +430,10 @@ static void test_filter() {
   CHECK(worn.percent() == 0);
   worn.set_percent(10);
   CHECK(worn.percent() == 10);
+  for (int percent = 0; percent <= 100; percent++) {
+    worn.set_percent(static_cast<uint8_t>(percent));
+    CHECK(worn.percent() == percent);
+  }
   worn.set_percent(100);
   CHECK(worn.percent() == 100 && worn.used_cadr() == 0);
   worn.set_percent(0);

@@ -170,6 +170,10 @@ To change the token, 12 to 64 characters with no spaces:
 
 The script remembers the new one in `secrets/ota-token.current`. A factory reset discards it and the purifier goes back to the token in `secrets/ota-token.txt`. If the log says `no update token in the factory data`, the factory data was not written and updates over Wi-Fi are off.
 
+### Resetting the filter
+
+After fitting a new filter, hold the Sleep button for three seconds, until the filter light goes off. Filter life returns to 100%. Apple Home has no reset button for it.
+
 ### Carrying over a part-used filter
 
 The purifier does not know how old its filter is. Stock firmware kept that count, and this firmware starts at 100%. If your filter is part-used, note the percentage in the VeSync app before flashing, then set it once the purifier is paired:
