@@ -1,6 +1,7 @@
 #include "matter_setup.h"
 
 #include "commissionable_data.h"
+#include "device_info.h"
 #include "ota.h"
 #include "purifier.h"
 
@@ -391,6 +392,7 @@ esp_err_t matter_setup_start() {
   esp_err_t err = esp_matter::start(event_callback);
   if (err != ESP_OK)
     return err;
+  device_info_install();
 
   CHIP_ERROR scheduled = chip::DeviceLayer::PlatformMgr().ScheduleWork([](intptr_t) {
     attach_delegates();
