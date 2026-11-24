@@ -201,12 +201,12 @@ Also observed, and worth knowing for anyone building a purifier.
 
 | What you do in Home | What Home sends |
 |---|---|
-| Tap Auto while off | FanMode Auto, then FanMode High 40 ms later |
+| Tap Auto while off | FanMode Auto and FanMode High, 40 ms apart, in either order |
 | Tap Manual while off | FanMode High |
 | Drag the slider | A stream of PercentSetting writes |
 | Tap Off | FanMode Off |
 
-- Home treats High as "turn on". The firmware ignores a High that follows Auto within 1.5 seconds, and otherwise resumes the last manual speed.
+- Home treats High as "turn on". The firmware waits 250 ms before acting on a High, and drops it if Auto arrives in that time or arrived up to 1.5 seconds before. A High on its own resumes the last manual speed.
 - Home does not read names for the parts of a device from semantic tag labels. Fixed Label and User Label are reported not to work either.
 - Home shows Matter's best air quality value, Good, one step below its own Excellent.
 - The default accessory name is always "Matter Accessory" for an uncertified device.
