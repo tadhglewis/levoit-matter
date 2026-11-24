@@ -21,3 +21,16 @@ esptool_path() {
   fi
   echo "$ROOT/.venv/bin/esptool"
 }
+
+read_token() {
+  if [ -n "$LEVOIT_OTA_TOKEN" ]; then
+    echo "$LEVOIT_OTA_TOKEN"
+  elif [ -e "$SECRETS/ota-token.current" ]; then
+    cat "$SECRETS/ota-token.current"
+  elif [ -e "$SECRETS/ota-token.txt" ]; then
+    cat "$SECRETS/ota-token.txt"
+  else
+    echo "no update token for '$DEVICE' in $SECRETS" >&2
+    return 1
+  fi
+}
