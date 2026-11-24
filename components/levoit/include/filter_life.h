@@ -14,6 +14,7 @@ public:
   void load(uint32_t used_cadr, uint32_t runtime_minutes);
   void tick_minute(const PurifierState &state, uint8_t last_level);
   void reset();
+  void set_percent(uint8_t percent);
 
   uint8_t percent() const;
   uint32_t used_cadr() const { return this->used_cadr_; }

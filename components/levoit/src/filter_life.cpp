@@ -39,6 +39,14 @@ void FilterLife::tick_minute(const PurifierState &state, uint8_t last_level) {
   this->remainder_ %= 60;
 }
 
+void FilterLife::set_percent(uint8_t percent) {
+  if (percent > 100)
+    percent = 100;
+  uint64_t capacity = static_cast<uint64_t>(this->model_.cadr_m3h) * 24 * 30 * this->months_;
+  this->used_cadr_ = static_cast<uint32_t>(capacity * (100 - percent) / 100);
+  this->remainder_ = 0;
+}
+
 uint8_t FilterLife::percent() const {
   uint32_t capacity = static_cast<uint32_t>(this->model_.cadr_m3h) * 24 * 30 * this->months_;
   if (capacity == 0)

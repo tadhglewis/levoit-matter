@@ -24,7 +24,7 @@ Only the Core 300S has an owner here. If you flash another model, keep the seria
 |---|---|
 | Power and fan speed | Purifier tile with a slider that snaps to the purifier's speeds |
 | Auto mode | Purifier mode. Unverified in Home. |
-| Filter life and change-filter flag | Filter status. Unverified in Home. |
+| Filter life and change-filter flag | Filter status. Starts at 100%; `tools/filter.sh` sets it for a part-used filter. |
 | PM2.5 and air quality level | Air quality sensor |
 | Sleep, Display, Child Lock | Three separate switches |
 | Pairing | Scan the QR code. The phone sends Wi-Fi over Bluetooth. |

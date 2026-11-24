@@ -428,6 +428,12 @@ static void test_filter() {
   CHECK(worn.percent() == 50);
   worn.load(capacity, 1000);
   CHECK(worn.percent() == 0);
+  worn.set_percent(10);
+  CHECK(worn.percent() == 10);
+  worn.set_percent(100);
+  CHECK(worn.percent() == 100 && worn.used_cadr() == 0);
+  worn.set_percent(0);
+  CHECK(worn.percent() == 0);
   worn.reset();
   CHECK(worn.percent() == 100 && worn.runtime_minutes() == 0);
 }

@@ -127,6 +127,14 @@ void handle_request(const Request &request, uint32_t now_ms) {
     show_wifi_led();
     return;
   }
+  if (request.kind == RequestKind::FILTER_SET) {
+    filter.set_percent(request.value);
+    filter_percent.store(filter.percent());
+    save_filter();
+    ESP_LOGI(TAG, "filter life set to %u%%", filter.percent());
+    publish(now_ms, true);
+    return;
+  }
   if (request.kind == RequestKind::FILTER_RESET) {
     filter.reset();
     filter_percent.store(filter.percent());

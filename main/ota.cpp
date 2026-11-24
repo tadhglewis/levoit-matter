@@ -227,6 +227,28 @@ esp_err_t handle_set_token(httpd_req_t *request) {
   return ESP_OK;
 }
 
+esp_err_t handle_filter(httpd_req_t *request) {
+  if (!authorized(request))
+    return fail(request, HTTPD_401_UNAUTHORIZED, "bad token");
+  char body[4] = {};
+  if (request->content_len < 1 || request->content_len > 3 ||
+      httpd_req_recv(request, body, request->content_len) !=
+          static_cast<int>(request->content_len))
+    return fail(request, HTTPD_400_BAD_REQUEST, "send a percentage, 0 to 100");
+  int percent = 0;
+  for (size_t i = 0; i < request->content_len; i++) {
+    if (body[i] < '0' || body[i] > '9')
+      return fail(request, HTTPD_400_BAD_REQUEST, "send a percentage, 0 to 100");
+    percent = percent * 10 + (body[i] - '0');
+  }
+  if (percent > 100)
+    return fail(request, HTTPD_400_BAD_REQUEST, "send a percentage, 0 to 100");
+  if (!levoit::purifier_post({levoit::RequestKind::FILTER_SET, static_cast<uint8_t>(percent)}))
+    return fail(request, HTTPD_500_INTERNAL_SERVER_ERROR, "busy, try again");
+  httpd_resp_sendstr(request, "ok, filter life set\n");
+  return ESP_OK;
+}
+
 esp_err_t handle_log(httpd_req_t *request) {
   if (!authorized(request))
     return fail(request, HTTPD_401_UNAUTHORIZED, "bad token");
@@ -292,9 +314,14 @@ void ota_server_start() {
   log.uri = "/log";
   log.method = HTTP_GET;
   log.handler = handle_log;
+  httpd_uri_t filter = {};
+  filter.uri = "/filter";
+  filter.method = HTTP_POST;
+  filter.handler = handle_filter;
   if (httpd_register_uri_handler(server, &upload) != ESP_OK ||
       httpd_register_uri_handler(server, &set_token) != ESP_OK ||
-      httpd_register_uri_handler(server, &log) != ESP_OK) {
+      httpd_register_uri_handler(server, &log) != ESP_OK ||
+      httpd_register_uri_handler(server, &filter) != ESP_OK) {
     httpd_stop(server);
     server = nullptr;
     ESP_LOGE(TAG, "failed to register the update endpoints");

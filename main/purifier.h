@@ -17,6 +17,7 @@ enum class RequestKind : uint8_t {
   DISPLAY,
   CHILD_LOCK,
   FILTER_RESET,
+  FILTER_SET,
   WIFI_LED,
   IDENTIFY,
 };
