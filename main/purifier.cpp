@@ -174,7 +174,7 @@ void on_status(const PurifierState &state, uint32_t now_ms) {
   bool was_on = have_state && raw_state.power;
   raw_state = state;
   have_state = true;
-  if (state.level != 0)
+  if (state.level != 0 && (state.mode == Mode::MANUAL || state.running_level_valid))
     last_level = state.level;
   if (was_on && !state.power)
     save_filter();

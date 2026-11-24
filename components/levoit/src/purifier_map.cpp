@@ -54,10 +54,13 @@ MatterView make_view(const ModelSpec &model, const PurifierState &state,
     view.fan_mode = FanModeView::OFF;
   } else if (state.mode == Mode::AUTO) {
     view.fan_mode = FanModeView::AUTO;
-    if (state.level != 0) {
+    uint8_t running = state.running_level_valid
+                          ? (state.running_level != 0 ? state.running_level : 1)
+                          : state.level;
+    if (running != 0) {
       view.current_valid = true;
-      view.speed_current = state.level;
-      view.percent_current = level_to_percent(state.level, model.level_max);
+      view.speed_current = running;
+      view.percent_current = level_to_percent(running, model.level_max);
     }
   } else {
     uint8_t level = state.mode == Mode::SLEEP ? 1 : known_level != 0 ? known_level : 1;

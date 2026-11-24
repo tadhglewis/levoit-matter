@@ -188,6 +188,19 @@ static void test_models() {
   CHECK(state.power && state.mode == Mode::AUTO && state.level == 1 && state.display_on);
   CHECK(state.air_quality == 1 && state.pm25 == 1 && !state.child_lock);
   CHECK(state.mcu_major == 1 && state.mcu_minor == 0 && state.mcu_patch == 0);
+  CHECK(state.running_level_valid && state.running_level == 0);
+  MatterView idle = make_view(CORE_300S, state, 3, 80);
+  CHECK(idle.fan_mode == FanModeView::AUTO && idle.current_valid && idle.percent_current == 33);
+  FilterLife idle_filter(CORE_300S);
+  for (int i = 0; i < 60; i++)
+    idle_filter.tick_minute(state, 3);
+  CHECK(idle_filter.used_cadr() == 44);
+  uint8_t ramped[19];
+  memcpy(ramped, v2_300s, 19);
+  ramped[9] = 0x03;
+  CHECK(decode_status(CORE_300S, 0x013240, ramped, 19, state) && state.running_level == 3 && state.level == 1);
+  MatterView fast = make_view(CORE_300S, state, 1, 80);
+  CHECK(fast.fan_mode == FanModeView::AUTO && fast.percent_current == 100 && fast.speed_current == 3);
   CHECK(!decode_status(CORE_300S, 0x013240, v2_300s, 18, state));
   CHECK(decode_status(CORE_300S, 0x013040, SAMPLE_STATUS + HEADER_LEN, 18, state) && state.pm25 == 3);
 

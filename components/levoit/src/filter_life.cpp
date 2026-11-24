@@ -18,9 +18,13 @@ uint32_t FilterLife::cadr_per_hour_(const PurifierState &state,
                                     uint8_t last_level) const {
   if (!state.power)
     return 0;
-  if (state.mode == Mode::SLEEP)
+  bool auto_idle = state.mode == Mode::AUTO && state.running_level_valid &&
+                   state.running_level == 0;
+  if (state.mode == Mode::SLEEP || auto_idle)
     return static_cast<uint32_t>(this->model_.cadr_m3h) / this->model_.level_max * 63 / 100;
-  uint8_t level = state.level != 0 ? state.level : last_level != 0 ? last_level : 1;
+  uint8_t level = state.mode == Mode::AUTO && state.running_level_valid
+                      ? state.running_level
+                      : state.level != 0 ? state.level : last_level != 0 ? last_level : 1;
   if (level > this->model_.level_max)
     level = this->model_.level_max;
   return static_cast<uint32_t>(this->model_.cadr_m3h) * level / this->model_.level_max;

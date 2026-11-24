@@ -8,25 +8,25 @@ constexpr uint8_t DISPLAY_FULL = 0x64;
 
 const ModelSpec CORE_200S = {
     "Core 200S", 3,    167, 6, false, 0x016040, 0,
-    0x016140,    true, {12, 5, 6, 7, NO_FIELD, NO_FIELD, 10, NO_FIELD, NO_FIELD},
+    0x016140,    true, {12, 5, 6, 7, NO_FIELD, NO_FIELD, 10, NO_FIELD, NO_FIELD, NO_FIELD},
     0,           {},
 };
 
 const ModelSpec CORE_300S = {
     "Core 300S", 3,     214, 6, true, 0x013040, 0x01B040,
-    0x013140,    false, {18, 5, 6, NO_FIELD, 10, 11, 13, 14, 17},
-    0x013240,    {19, 5, 7, NO_FIELD, 11, 12, 14, 15, 18},
+    0x013140,    false, {18, 5, 6, NO_FIELD, 10, 11, 13, 14, 17, NO_FIELD},
+    0x013240,    {19, 5, 7, NO_FIELD, 11, 12, 14, 15, 18, 9},
 };
 
 const ModelSpec CORE_400S = {
     "Core 400S", 4,     442, 6, true, 0x013040, 0x01B040,
-    0x013140,    false, {18, 5, 7, NO_FIELD, 10, 11, 13, 14, 17},
+    0x013140,    false, {18, 5, 7, NO_FIELD, 10, 11, 13, 14, 17, NO_FIELD},
     0,           {},
 };
 
 const ModelSpec CORE_600S = {
     "Core 600S", 4,    641, 6, true, 0x014041, 0,
-    0x014141,    true, {22, 5, 8, NO_FIELD, 11, 12, 14, 15, NO_FIELD},
+    0x014141,    true, {22, 5, 8, NO_FIELD, 11, 12, 14, 15, NO_FIELD, NO_FIELD},
     0,           {},
 };
 
@@ -88,6 +88,9 @@ bool decode_with(const ModelSpec &model, const StatusLayout &layout,
 
   uint8_t level = read_u8(payload, layout.level);
   state.level = (level >= 1 && level <= model.level_max) ? level : 0;
+  state.running_level_valid = layout.running_level != NO_FIELD;
+  uint8_t running = read_u8(payload, layout.running_level);
+  state.running_level = (running >= 1 && running <= model.level_max) ? running : 0;
   if (layout.display == NO_FIELD)
     state.display_on = true;
   else if (layout.display_alt == NO_FIELD)

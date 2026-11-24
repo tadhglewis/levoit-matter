@@ -20,6 +20,7 @@ struct StatusLayout {
   int8_t child_lock;
   int8_t auto_profile;
   int8_t error;
+  int8_t running_level;
 };
 
 struct ModelSpec {
@@ -50,6 +51,8 @@ struct PurifierState {
   bool power{false};
   Mode mode{Mode::MANUAL};
   uint8_t level{0};
+  bool running_level_valid{false};
+  uint8_t running_level{0};
   bool display_on{true};
   bool child_lock{false};
   uint8_t air_quality{0};
