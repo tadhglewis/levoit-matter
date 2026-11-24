@@ -54,27 +54,28 @@ export PORT=/dev/cu.usbserial-XXXX
 
 Every flashing command needs the chip in its bootloader. If a command cannot connect, repeat step 4.
 
-## 3. Back up the stock firmware
+## 3. One folder per purifier
 
-Do this once, before anything else. It is the only way back to VeSync.
+Everything that belongs to one purifier lives in `devices/<name>/`. The tools create it. The default name is `purifier`. If you have more than one, pass `-d bedroom`, `-d office` and so on to every tool.
 
-```bash
-.venv/bin/esptool --port $PORT flash-id
-.venv/bin/esptool --port $PORT read-flash 0 ALL stock-backup.bin
+```
+devices/purifier/
+  fctry.bin            written to the chip once. Holds no readable secret.
+  stock-backup.bin     the purifier's original firmware
+  boot-log.txt         serial log
+  secrets/
+    qrcode.png         Matter setup code, as a label
+    setup-codes.csv    the same code as text
+    ota-token.txt      token for updates over Wi-Fi
 ```
 
-`flash-id` must report a 4 MB flash. If it does not, stop: the partition tables here assume 4 MB.
+`secrets/` is what a person reads. It never needs to leave this computer, except the QR code to your phone's camera. The rest of the folder is what goes onto, or came off, the chip.
 
-Keep two copies of `stock-backup.bin` somewhere that is not this laptop.
-
-To restore the stock firmware later:
-
-```bash
-.venv/bin/esptool --port $PORT erase-flash
-.venv/bin/esptool --port $PORT write-flash 0x0 stock-backup.bin
-```
+**Back the whole folder up.** The setup code and token cannot be read back from the purifier, and `stock-backup.bin` is the only way back to VeSync.
 
 ## 4. Build
+
+Skip this section if you are flashing a downloaded bundle.
 
 ```bash
 cp sdkconfig.local.example sdkconfig.local
@@ -102,42 +103,52 @@ These are ordinary Kconfig options. `sdkconfig.local` only seeds them, so a chan
 
 ## 5. Flash
 
-First make this purifier's setup code and update token. Do it once per purifier:
+Make this purifier's setup code and update token. Once per purifier:
 
 ```bash
 ./tools/factory.sh
 ```
 
-It writes four files to `factory/`: `fctry.bin` for the chip, `qrcode.png` for the label, `codes.csv` with the same codes as text, and `ota_token.txt` for updates over Wi-Fi. **Back the folder up.** It is the only copy of the setup code and the token, and a full flash erase needs `fctry.bin` again.
-
-With the chip in its bootloader, write the factory data, then the firmware:
+Then, with the chip in its bootloader:
 
 ```bash
-.venv/bin/esptool --port $PORT write-flash 0x1A000 factory/fctry.bin
-idf -p $PORT flash monitor
+./tools/flash.sh $PORT
 ```
 
-The factory data only needs writing once. Later firmware flashes and updates over Wi-Fi do not touch it. `erase-flash` does.
+The first run only backs up the stock firmware to `devices/purifier/stock-backup.bin`. It checks the flash size on the way: it must report 4 MB, and if it does not, stop.
 
-Exit the monitor with `Ctrl-]`.
+Put the chip back in its bootloader and run the same command again. This run writes the firmware and the factory data.
 
-To flash without the build tools, the files and offsets are:
+Release `IO0`, power cycle, and watch the log:
 
 ```bash
-cd build
-../.venv/bin/esptool --port $PORT write-flash \
-  0x1000 bootloader/bootloader.bin \
-  0x8000 partition_table/partition-table.bin \
-  0x9000 ota_data_initial.bin \
-  0x1A000 ../factory/fctry.bin \
-  0x20000 levoit_matter.bin
+./tools/monitor.sh $PORT
 ```
+
+Exit with `Ctrl-]`. The log is also saved to `devices/purifier/boot-log.txt`.
+
+The factory data only needs writing once. Updates over Wi-Fi do not touch it. `erase-flash` does, and `flash.sh` puts it back.
+
+To restore the stock firmware later:
+
+```bash
+.venv/bin/esptool --port $PORT erase-flash
+.venv/bin/esptool --port $PORT write-flash 0x0 devices/purifier/stock-backup.bin
+```
+
+### Flashing from another computer
+
+```bash
+./tools/bundle.sh --with-device
+```
+
+This makes `dist/levoit-matter-<model>.zip`: the firmware, these tools, and `devices/purifier/fctry.bin`. It never includes `secrets/`. The other computer needs only Python 3. Unzip it there and run `./tools/flash.sh <port>` as above. Bring `stock-backup.bin` and `boot-log.txt` back into `devices/purifier/` here afterwards.
 
 ## 6. Pair
 
-In Apple Home choose Add Accessory, scan `factory/qrcode.png`, and accept the uncertified accessory prompt. The phone sends Wi-Fi credentials over Bluetooth. If the camera will not read it, enter the manual code from `factory/codes.csv`.
+In Apple Home choose Add Accessory, scan `devices/purifier/secrets/qrcode.png` off the screen or a printout, and accept the uncertified accessory prompt. The phone sends Wi-Fi credentials over Bluetooth. If the camera will not read it, enter the manual code from `setup-codes.csv`.
 
-The log should say `setup code from the factory partition`. If it says `no factory data; using the public test setup code`, the factory data was not written, and the purifier is pairable by anyone in Bluetooth range using the public code it then prints. Write `fctry.bin` and reboot.
+The log should say `setup code from the factory partition`. If it says `no factory data; using the public test setup code`, the factory data was not written, and the purifier is pairable by anyone in Bluetooth range using the public code it then prints. Run `flash.sh` again.
 
 The code stays the same across reflashes, updates and factory resets. Print the QR image and stick it on the purifier.
 
@@ -149,7 +160,7 @@ idf build
 ./tools/ota.sh <device-ip>
 ```
 
-The script reads the token from `factory/`. The purifier reboots into the new image. If Wi-Fi and the purifier link do not both come up within two minutes, it reboots back into the old one.
+The script reads the token from the device's `secrets/` folder. The purifier reboots into the new image. If Wi-Fi and the purifier link do not both come up within two minutes, it reboots back into the old one.
 
 To change the token, 12 to 64 characters with no spaces:
 
@@ -157,7 +168,7 @@ To change the token, 12 to 64 characters with no spaces:
 ./tools/ota.sh <device-ip> --set-token <new-token>
 ```
 
-The script remembers the new one in `factory/ota_token.current`. A factory reset discards it and the purifier goes back to the token in `factory/ota_token.txt`. If the log says `no update token in the factory data`, the factory data was not written and updates over Wi-Fi are off.
+The script remembers the new one in `secrets/ota-token.current`. A factory reset discards it and the purifier goes back to the token in `secrets/ota-token.txt`. If the log says `no update token in the factory data`, the factory data was not written and updates over Wi-Fi are off.
 
 ## 8. Factory reset
 
@@ -165,10 +176,11 @@ Tap the Display Off button six times within fifteen seconds, about one tap a sec
 
 Removing the purifier from the last controller does the same thing.
 
-If that fails, erase over serial and flash again, including `factory/fctry.bin`:
+If that fails, erase over serial and flash again:
 
 ```bash
 .venv/bin/esptool --port $PORT erase-flash
+./tools/flash.sh $PORT
 ```
 
 ## 9. First boot checklist

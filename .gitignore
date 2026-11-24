@@ -8,6 +8,6 @@ sdkconfig.local
 dependencies.lock
 components/levoit/host_test/build/
 build.log
-factory/
+devices/
 __pycache__/
 dist/

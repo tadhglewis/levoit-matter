@@ -49,11 +49,11 @@ You need the case open, a 3.3 V USB serial adapter, and ESP-IDF 5.5.6.
 cp sdkconfig.local.example sdkconfig.local   # model
 idf.py build
 ./tools/factory.sh                           # this purifier's setup code, QR label and update token
-esptool --port /dev/cu.usbserial-XXXX write-flash 0x1A000 factory/fctry.bin
-idf.py -p /dev/cu.usbserial-XXXX flash monitor
+./tools/flash.sh /dev/cu.usbserial-XXXX      # first run backs up the stock firmware, second run flashes
+./tools/monitor.sh /dev/cu.usbserial-XXXX
 ```
 
-Scan `factory/qrcode.png` in Apple Home.
+Scan `devices/purifier/secrets/qrcode.png` in Apple Home.
 
 That is the short version. **Read [`FLASHING.md`](FLASHING.md) before you open the purifier.** It covers the toolchain, wiring, backing up the stock firmware, pairing, updates and what to check on the first boot.
 
@@ -72,12 +72,14 @@ Nothing secret is in the firmware. The same build goes on every purifier of a mo
 
 | Secret | Where you keep it | What the purifier stores |
 |---|---|---|
-| Matter setup code | `factory/qrcode.png`, `factory/codes.csv` | A one-way verifier |
-| Update token | `factory/ota_token.txt` | A salted hash |
+| Matter setup code | `secrets/qrcode.png`, `secrets/setup-codes.csv` | A one-way verifier |
+| Update token | `secrets/ota-token.txt` | A salted hash |
 
-Both go into a small factory partition that firmware updates and factory resets leave alone. Neither can be read back off the chip, so back up the `factory/` folder.
+Each purifier gets a folder, `devices/<name>/`, holding its factory data, its stock firmware backup, and a `secrets/` subfolder with the two files above. The folder is gitignored. Back it up: neither secret can be read back off the chip.
 
-The update token can be changed over Wi-Fi with `./tools/ota.sh <ip> --set-token <new>`. A factory reset returns to the one in `factory/ota_token.txt`.
+On the purifier, both live in a small factory partition that firmware updates and factory resets leave alone.
+
+The update token can be changed over Wi-Fi with `./tools/ota.sh <ip> --set-token <new>`. A factory reset returns to the original.
 
 A purifier flashed without factory data falls back to the public Matter test code, has updates over Wi-Fi turned off, and says so in its log. Fine on a bench, not in a home.
 
