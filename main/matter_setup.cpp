@@ -204,6 +204,11 @@ esp_err_t attribute_callback(esp_matter::attribute::callback_type_t type,
   return ESP_OK;
 }
 
+void reset_everything() {
+  ota_token_restore_default();
+  esp_matter::factory_reset();
+}
+
 bool has_fabric() {
   return chip::Server::GetInstance().GetFabricTable().FabricCount() > 0;
 }
@@ -239,10 +244,10 @@ void event_callback(const ChipDeviceEvent *event, intptr_t) {
       post(RequestKind::CHILD_LOCK, 0);
       CHIP_ERROR err = chip::DeviceLayer::SystemLayer().StartTimer(
           chip::System::Clock::Milliseconds32(1500),
-          [](chip::System::Layer *, void *) { esp_matter::factory_reset(); },
+          [](chip::System::Layer *, void *) { reset_everything(); },
           nullptr);
       if (err != CHIP_NO_ERROR)
-        esp_matter::factory_reset();
+        reset_everything();
     }
     break;
   default:
@@ -425,7 +430,7 @@ bool matter_publish(const MatterView &view) {
 
 void matter_factory_reset() {
   CHIP_ERROR err = chip::DeviceLayer::PlatformMgr().ScheduleWork(
-      [](intptr_t) { esp_matter::factory_reset(); });
+      [](intptr_t) { reset_everything(); });
   if (err != CHIP_NO_ERROR)
     ESP_LOGE(TAG, "factory reset not scheduled: %" CHIP_ERROR_FORMAT, err.Format());
 }

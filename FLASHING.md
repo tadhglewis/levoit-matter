@@ -85,7 +85,6 @@ Edit `sdkconfig.local`:
 | Setting | Rule |
 |---|---|
 | `CONFIG_LEVOIT_MODEL_CORE300S=y` | Or `CORE200S`, `CORE400S`, `CORE600S`. |
-| `CONFIG_LEVOIT_OTA_TOKEN` | Any long random string. Empty disables updates over Wi-Fi. |
 
 Build and test:
 
@@ -103,13 +102,13 @@ These are ordinary Kconfig options. `sdkconfig.local` only seeds them, so a chan
 
 ## 5. Flash
 
-First make this purifier's setup code. Do it once per purifier:
+First make this purifier's setup code and update token. Do it once per purifier:
 
 ```bash
 ./tools/factory.sh
 ```
 
-It writes three files to `factory/`: `fctry.bin` for the chip, `qrcode.png` for the label, and `codes.csv` with the same codes as text. **Back the folder up.** It is the only copy of the setup code, and a full flash erase needs `fctry.bin` again.
+It writes four files to `factory/`: `fctry.bin` for the chip, `qrcode.png` for the label, `codes.csv` with the same codes as text, and `ota_token.txt` for updates over Wi-Fi. **Back the folder up.** It is the only copy of the setup code and the token, and a full flash erase needs `fctry.bin` again.
 
 With the chip in its bootloader, write the factory data, then the firmware:
 
@@ -147,10 +146,18 @@ The code stays the same across reflashes, updates and factory resets. Print the 
 ```bash
 source env.sh
 idf build
-./tools/ota.sh <device-ip> <token from sdkconfig.local>
+./tools/ota.sh <device-ip>
 ```
 
-The purifier reboots into the new image. If Wi-Fi and the purifier link do not both come up within two minutes, it reboots back into the old one.
+The script reads the token from `factory/`. The purifier reboots into the new image. If Wi-Fi and the purifier link do not both come up within two minutes, it reboots back into the old one.
+
+To change the token, 12 to 64 characters with no spaces:
+
+```bash
+./tools/ota.sh <device-ip> --set-token <new-token>
+```
+
+The script remembers the new one in `factory/ota_token.current`. A factory reset discards it and the purifier goes back to the token in `factory/ota_token.txt`. If the log says `no update token in the factory data`, the factory data was not written and updates over Wi-Fi are off.
 
 ## 8. Factory reset
 

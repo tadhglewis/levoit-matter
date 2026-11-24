@@ -108,7 +108,11 @@ The purifier does not report filter life. The firmware counts airflow: each minu
 
 ## Updates
 
-Apple Home does not serve firmware to uncertified devices, so updates are an authenticated `POST /ota` on the purifier. The new image is kept only if, within two minutes of booting, the network is up, the update endpoint is running and the purifier is answering on the serial line. Otherwise the bootloader returns to the previous image. An image that cannot be updated again is never kept.
+Apple Home can serve Matter updates, but only ones published to the Matter ledger under a vendor account, which this project does not have. So updates are an authenticated `POST /ota` on the purifier.
+
+The token is per purifier. `tools/factory.sh` generates it and stores only a salted SHA-256 hash in the factory partition. `POST /ota/token`, authorised with the current token, replaces it with a new hash in the settings area. A factory reset removes that replacement, so the factory token works again. That keeps a forgotten token recoverable without a serial cable, at the cost that a reset undoes a change of token.
+
+A purifier with no token in its factory data does not start the update server. The new image is kept only if, within two minutes of booting, the network is up, the update endpoint is running and the purifier is answering on the serial line. Otherwise the bootloader returns to the previous image. An image that cannot be updated again is never kept.
 
 ## Testing
 

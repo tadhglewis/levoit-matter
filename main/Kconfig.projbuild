@@ -28,10 +28,4 @@ menu "Levoit purifier"
         help
             The Core 200S uses 17. The Core 200S-P (hardware version 2.0) uses 16.
 
-    config LEVOIT_OTA_TOKEN
-        string "Token for updates over Wi-Fi"
-        default ""
-        help
-            Bearer token for POST /ota. Empty disables updates over Wi-Fi.
-
 endmenu

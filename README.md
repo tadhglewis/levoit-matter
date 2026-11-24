@@ -46,9 +46,9 @@ Not exposed: timer, auto-mode profiles, room size, the 200S night light, the 600
 You need the case open, a 3.3 V USB serial adapter, and ESP-IDF 5.5.6.
 
 ```bash
-cp sdkconfig.local.example sdkconfig.local   # model, update token
+cp sdkconfig.local.example sdkconfig.local   # model
 idf.py build
-./tools/factory.sh                           # this purifier's setup code and QR label
+./tools/factory.sh                           # this purifier's setup code, QR label and update token
 esptool --port /dev/cu.usbserial-XXXX write-flash 0x1A000 factory/fctry.bin
 idf.py -p /dev/cu.usbserial-XXXX flash monitor
 ```
@@ -64,14 +64,22 @@ Set in `sdkconfig.local` before the first build, or in `idf.py menuconfig` under
 | Setting | Default | Notes |
 |---|---|---|
 | `CONFIG_LEVOIT_MODEL_CORE300S=y` | Core 300S | Or `CORE200S`, `CORE400S`, `CORE600S`. |
-| `CONFIG_LEVOIT_OTA_TOKEN` | empty | Empty disables updates over Wi-Fi. |
 | `CONFIG_LEVOIT_UART_TX_GPIO`, `_RX_GPIO` | Per model | Only change for a board revision with swapped pins. |
 
-## Setup code
+## Per-purifier secrets
 
-Each purifier gets its own random setup code, the way retail devices do. `tools/factory.sh` generates it, writes it to a small factory partition image, and produces the QR label. The purifier stores only a one-way verifier, so the code is not in the firmware and cannot be read back off the chip. Firmware updates and factory resets leave it alone.
+Nothing secret is in the firmware. The same build goes on every purifier of a model, and `tools/factory.sh` makes the two things that are unique to one unit:
 
-A purifier flashed without factory data falls back to the public Matter test code and says so in its log. Fine on a bench, not in a home.
+| Secret | Where you keep it | What the purifier stores |
+|---|---|---|
+| Matter setup code | `factory/qrcode.png`, `factory/codes.csv` | A one-way verifier |
+| Update token | `factory/ota_token.txt` | A salted hash |
+
+Both go into a small factory partition that firmware updates and factory resets leave alone. Neither can be read back off the chip, so back up the `factory/` folder.
+
+The update token can be changed over Wi-Fi with `./tools/ota.sh <ip> --set-token <new>`. A factory reset returns to the one in `factory/ota_token.txt`.
+
+A purifier flashed without factory data falls back to the public Matter test code, has updates over Wi-Fi turned off, and says so in its log. Fine on a bench, not in a home.
 
 ## How it works
 
