@@ -119,6 +119,8 @@ In Apple Home, Add Accessory, scan `secrets/qrcode.png` off the screen or a prin
 
 Home Assistant rejects the purifier's test certificate by default. In the Matter Server add-on's configuration, turn on "Enable test-net DCL" and restart the add-on first. The add-on log says "This device uses a test/development certificate" if you forgot.
 
+Home Assistant shows the three switches as Switch (3), (4) and (5): Sleep, Display and Child Lock. Rename them on each entity's settings page. The names survive updates.
+
 Print the QR code and stick it on the purifier. The code never changes, across updates and factory resets alike.
 
 Then set the filter life you noted from VeSync. The firmware cannot know how old your filter is and starts at 100%.
