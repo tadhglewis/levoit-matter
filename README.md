@@ -86,7 +86,7 @@ A purifier flashed without factory data falls back to the public Matter test cod
 
 ## How it works
 
-One ESP-IDF application on `espressif/esp_matter` 1.6.1, 1.48 MB in a 1.94 MB slot. The purifier protocol is a separate component in `components/levoit/` with its own unit tests. [`docs/DESIGN.md`](docs/DESIGN.md) explains the design and why it is built this way.
+One ESP-IDF application on `espressif/esp_matter` 1.6.1, 1.48 MB in a 1.94 MB slot. The purifier protocol is a separate component in `components/levoit/` with its own unit tests. [`docs/DESIGN.md`](docs/DESIGN.md) explains the design and why it is built this way. [`docs/APPLE-HOME.md`](docs/APPLE-HOME.md) records how Apple Home behaves with it, including the limits we could not work around.
 
 ## Related
 

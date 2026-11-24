@@ -195,22 +195,7 @@ Read from tuct's recordings, and not written down there as far as we found.
 - **Stock firmware acknowledges status with type `52`**, echoing the controller's counter, with a trailing `01`: `A5 52 00 04 00 62 01 60 40 01` on the 200S and the same shape on the 600S. The 200S and 600S rows use this form.
 - **The stock 200S firmware sends `01 61 40` at boot** and receives the status in the acknowledgement.
 
-### Apple Home's Matter behaviour
-
-Also observed, and worth knowing for anyone building a purifier.
-
-| What you do in Home | What Home sends |
-|---|---|
-| Tap Auto while off | FanMode Auto and FanMode High, 40 ms apart, in either order |
-| Tap Manual while off | FanMode High |
-| Drag the slider | A stream of PercentSetting writes |
-| Tap Off | FanMode Off |
-
-- With no On/Off cluster on the purifier, Home uses FanMode High to mean "turn on", so Auto from off arrives as two conflicting mode writes. The purifier endpoint now has an On/Off cluster, to give Home a separate way to turn it on. Whether Home uses it is not yet confirmed.
-- A FanMode High written from the mode control resumes the last manual speed, as the purifier's own button does.
-- Home does not read names for the parts of a device from semantic tag labels. Fixed Label and User Label are reported not to work either.
-- Home shows Matter's best air quality value, Good, one step below its own Excellent.
-- The default accessory name is always "Matter Accessory" for an uncertified device.
+How Apple Home behaves with this firmware, including what it sends and what it ignores, is in [`APPLE-HOME.md`](APPLE-HOME.md).
 
 ## Filter life
 
