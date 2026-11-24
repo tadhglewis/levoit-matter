@@ -25,6 +25,7 @@
 
 #include <atomic>
 #include <cstdio>
+#include <cstring>
 
 namespace chip::app::Clusters::FanControl {
 FanControlCluster *FindClusterOnEndpoint(EndpointId endpoint_id);
@@ -446,6 +447,15 @@ esp_err_t matter_setup_start() {
       esp_matter::node::create(&node_config, attribute_callback, identification_callback);
   if (node == nullptr)
     return ESP_FAIL;
+
+  esp_matter::cluster_t *basic = esp_matter::cluster::get(
+      esp_matter::endpoint::get(node, 0), BasicInformation::Id);
+  static char product_url[64];
+  strlcpy(product_url, device_info_product_url(), sizeof(product_url));
+  if (basic == nullptr ||
+      esp_matter::cluster::basic_information::attribute::create_product_url(
+          basic, product_url, strlen(product_url)) == nullptr)
+    ESP_LOGW(TAG, "product URL not added");
 
   if (!create_purifier_endpoint(node))
     return ESP_FAIL;

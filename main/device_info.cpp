@@ -18,7 +18,8 @@ using chip::DeviceLayer::ConfigurationManagerImpl;
 using chip::DeviceLayer::Internal::ESP32Config;
 using chip::DeviceLayer::Internal::GenericDeviceInstanceInfoProvider;
 
-constexpr const char *VENDOR_NAME = "levoit-matter";
+constexpr const char *VENDOR_NAME = "github.com/tadhglewis";
+constexpr const char *PRODUCT_URL = "https://github.com/tadhglewis/levoit-matter";
 
 CHIP_ERROR copy(const char *text, char *buf, size_t size) {
   if (strlen(text) + 1 > size)
@@ -36,6 +37,9 @@ public:
   CHIP_ERROR GetVendorName(char *buf, size_t size) override {
     return copy(VENDOR_NAME, buf, size);
   }
+  CHIP_ERROR GetProductURL(char *buf, size_t size) override {
+    return copy(PRODUCT_URL, buf, size);
+  }
   CHIP_ERROR GetProductName(char *buf, size_t size) override {
     char name[32];
     snprintf(name, sizeof(name), "Levoit %s", levoit::purifier_model().name);
@@ -49,3 +53,5 @@ void device_info_install() {
   static NamedDeviceInfo named;
   esp_matter::set_custom_device_instance_info_provider(&named);
 }
+
+const char *device_info_product_url() { return PRODUCT_URL; }
