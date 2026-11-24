@@ -265,7 +265,8 @@ static void test_mapping() {
   CHECK(percent_to_level(67, 3) == 3 && percent_to_level(100, 3) == 3);
   for (uint8_t level = 1; level <= 3; level++)
     CHECK(percent_to_level(level_to_percent(level, 3), 3) == level);
-  CHECK(air_quality_from_level(1) == 1 && air_quality_from_level(4) == 4);
+  CHECK(air_quality_from_level(1) == 1 && air_quality_from_level(2) == 1);
+  CHECK(air_quality_from_level(3) == 3 && air_quality_from_level(4) == 4);
   CHECK(air_quality_from_level(0) == 0 && air_quality_from_level(9) == 0);
   CHECK(change_indication_from_percent(100) == 0);
   CHECK(change_indication_from_percent(14) == 1);
@@ -297,9 +298,9 @@ static void test_view() {
 
   PurifierState sensor_error = state_of(true, Mode::MANUAL, 1);
   sensor_error.error = 1;
-  sensor_error.air_quality = 2;
+  sensor_error.air_quality = 3;
   MatterView errored = make_view(CORE_300S, sensor_error, 1, 3);
-  CHECK(errored.pm25_valid && errored.air_quality == 2);
+  CHECK(errored.pm25_valid && errored.air_quality == 3);
   CHECK(errored.change_indication == 2);
 }
 

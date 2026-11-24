@@ -108,6 +108,7 @@ devices/purifier/
     qrcode.png         Matter setup code
     setup-codes.csv    the same code as text
     ota-token.txt      token for updates over Wi-Fi
+    ota-token.current  appears if you change the token, and wins
 ```
 
 Back this folder up somewhere that is not this laptop. The setup code and token cannot be read back off the purifier. `stock-backup.bin` is the only way back to VeSync.
@@ -124,7 +125,21 @@ Then set the filter life you noted from VeSync. The firmware cannot know how old
 ./tools/filter.sh <ip> 60
 ```
 
-Rename the three "Power point" tiles in Home. In order they are Sleep, Display and Child Lock. Toggle each one first to be sure.
+### Rename the switches
+
+Home ignores the names the firmware sends, so the three switches arrive as numbered outlet tiles. Home says "Power point" in Australian English and "Outlet" in US English.
+
+| Home calls it | Rename to | Turn it on and |
+|---|---|---|
+| Power point 2 | Sleep | the fan drops to its quietest speed and the panel goes dark |
+| Power point 3 | Display | the panel lights come on |
+| Power point | Child Lock | the panel buttons stop responding |
+
+That is the order Home lists them in, and yes, the unnumbered one is the last endpoint. Seen on one pairing, so check the third column before you trust it. Run the purifier at a manual speed while you check, because Display does nothing when the purifier is off or in Sleep.
+
+To rename one, long-press the purifier tile, scroll to Accessories, tap the switch, then tap its name. Do it again after every re-pair. Home forgets the names when you remove the accessory.
+
+While you are there, rename the purifier itself from "Matter Accessory". Siri uses these names and nothing else.
 
 ## 7. Update
 
@@ -147,7 +162,7 @@ A factory reset puts the original token back.
 
 ## 8. Reset
 
-Factory reset: hold the Wi-Fi button for 15 seconds. The Wi-Fi light changes a few seconds in. Keep holding. Letting go early cancels it.
+Factory reset: hold the Wi-Fi button for 15 seconds. The Wi-Fi light changes a few seconds in. Keep holding. Letting go early cancels it. Child lock blocks the button, so turn the lock off at the panel first.
 
 Filter reset: hold Sleep for 3 seconds, until the filter light goes off.
 

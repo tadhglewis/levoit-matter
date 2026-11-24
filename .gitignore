@@ -5,7 +5,6 @@ managed_components/
 sdkconfig
 sdkconfig.old
 sdkconfig.local
-dependencies.lock
 components/levoit/host_test/build/
 build.log
 devices/

@@ -2,8 +2,6 @@
 
 Matter firmware for Levoit Core air purifiers. It runs on the ESP32 already inside the purifier, talks to Apple Home directly, and needs no cloud, no VeSync account and no hub software.
 
-It works on a Core 300S. The other models build from the same code and nobody has flashed them.
-
 ## Models
 
 | Model     | Speeds | Auto | Air quality | State    |
@@ -17,15 +15,15 @@ Vital, Sprout and EverestAir use a different protocol. Not supported.
 
 ## What you get in Apple Home
 
-| Feature                    | How                                                        |
-| -------------------------- | ---------------------------------------------------------- |
-| Power                      | Tile and Siri. Turning on resumes the last mode and speed. |
-| Fan speed                  | Slider, rounded up to the next real speed                  |
-| Auto                       | Mode menu. Shows the speed the fan is running at.          |
-| Sleep, Display, Child Lock | Three switches                                             |
-| Filter life                | Percentage, with a warning when it runs low                |
-| Air quality                | Level and PM2.5                                            |
-| Pairing                    | Scan a QR code. The phone hands over Wi-Fi by Bluetooth.   |
+| Feature                    | How                                                                                                            |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Power                      | Tile and Siri. Turning on resumes the last mode and speed.                                                     |
+| Fan speed                  | Slider, rounded up to the next real speed                                                                      |
+| Auto                       | Mode menu. Shows the speed the fan is running at.                                                              |
+| Sleep, Display, Child Lock | Three switches. Sleep and Child Lock are also in their standard Matter places, which Apple Home does not show. |
+| Filter life                | Percentage, with a warning when it runs low                                                                    |
+| Air quality                | Level and PM2.5                                                                                                |
+| Pairing                    | Scan a QR code. The phone hands over Wi-Fi by Bluetooth.                                                       |
 
 The buttons on the purifier still work, and Home follows them.
 
@@ -35,7 +33,7 @@ Timer, auto profiles and room size are not exposed.
 
 | To               | Do                                                              |
 | ---------------- | --------------------------------------------------------------- |
-| Factory reset    | Hold the Wi-Fi button for 15 seconds. Clears pairing and Wi-Fi. |
+| Factory reset    | Hold the Wi-Fi button for 15 seconds. Clears pairing and Wi-Fi. Turn child lock off first. |
 | Reset the filter | Hold Sleep for 3 seconds, until the filter light goes off       |
 
 Wi-Fi light blinking means not paired or not connected. Solid means connected. The filter light comes on below 5%.
@@ -44,15 +42,15 @@ Removing the purifier from Home also puts it back in pairing mode.
 
 ## From your computer
 
-| To                      | Run                                     |
-| ----------------------- | --------------------------------------- |
-| Update the firmware     | `./tools/ota.sh <ip>`                   |
-| Set filter life         | `./tools/filter.sh <ip> 60`             |
-| Read the log            | `./tools/log.sh <ip>`                   |
-| Follow the log          | `./tools/watch.sh <ip>`                 |
-| Change the update token | `./tools/ota.sh <ip> --set-token <new>` |
+| To                       | Run                                     |
+| ------------------------ | --------------------------------------- |
+| Update the firmware, OTA | `./tools/ota.sh <ip>`                   |
+| Set filter life          | `./tools/filter.sh <ip> 60`             |
+| Read the log             | `./tools/log.sh <ip>`                   |
+| Follow the log           | `./tools/watch.sh <ip>`                 |
+| Change the update token  | `./tools/ota.sh <ip> --set-token <new>` |
 
-A bad update rolls itself back.
+OTA updates go over your own network, to an endpoint on the purifier that needs its token. Nothing is fetched from the internet. A new image has to come up with Wi-Fi and the purifier's controller both working, or the bootloader goes back to the old one.
 
 ## Install
 
@@ -78,15 +76,17 @@ The firmware contains no secrets. One build fits every purifier of a model.
 
 Back that folder up. Lose it and you re-flash over serial to get a new code.
 
+Updates, the log and the filter setting are plain HTTP with that token. Fine on a home network you trust. Not fine on one you share.
+
 Skip `factory.sh` and the purifier uses the public Matter test code, which anyone nearby can pair with, and refuses updates over Wi-Fi.
 
 ## Limits
 
 Apple Home's, not ours. [docs/APPLE-HOME.md](docs/APPLE-HOME.md) has the evidence.
 
-- The three switches arrive as unnamed outlet tiles. Rename them once.
+- The three switches arrive as "Power point 2", "Power point 3" and "Power point". They are Sleep, Display and Child Lock, in that order. [Rename them once](FLASHING.md#rename-the-switches).
 - Siri only finds those switches by the names you give them.
-- Air quality never reads "Excellent". Matter's best value is "Good".
+- Air quality reads Good, Fair or Poor. Home has five levels and uses three for Matter. A blue or green ring is Good, orange is Fair, red is Poor.
 - No filter reset in Home. Use the Sleep button.
 - The slider redraws at the real speed only when your move changed the speed. Otherwise it sits where you left it until you reopen the app.
 - Home calls it an uncertified accessory, once, and offers "Matter Accessory" as its name.
@@ -106,6 +106,12 @@ Ours:
 - [docs/DESIGN.md](docs/DESIGN.md): how it works, and the purifier's serial protocol
 - [docs/APPLE-HOME.md](docs/APPLE-HOME.md): what Apple Home does with a Matter purifier
 - [esphome-levoit-matter](https://github.com/tadhglewis/esphome-levoit-matter): the same purifier as an ESPHome config. Best effort.
+
+## Contributing
+
+Only the Core 300S has been run. If you flash a 200S, 400S or 600S, open an issue with the output of `./tools/log.sh <ip>` whether it worked or not. The first status frame is in there, and that is what a model fix needs.
+
+`./components/levoit/host_test/run.sh` has to pass. A change to the protocol code comes with a captured frame in the tests.
 
 ## Credits
 

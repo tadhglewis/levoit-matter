@@ -19,7 +19,11 @@ using chip::DeviceLayer::Internal::ESP32Config;
 using chip::DeviceLayer::Internal::GenericDeviceInstanceInfoProvider;
 
 constexpr const char *VENDOR_NAME = "tadhglewis.dev";
+constexpr const char *HARDWARE_VERSION = "Stock ESP32";
 constexpr const char *PRODUCT_URL = "https://github.com/tadhglewis/levoit-matter";
+
+bool local_config_disabled = false;
+void (*local_config_handler)(bool) = nullptr;
 
 CHIP_ERROR copy(const char *text, char *buf, size_t size) {
   if (strlen(text) + 1 > size)
@@ -37,8 +41,20 @@ public:
   CHIP_ERROR GetVendorName(char *buf, size_t size) override {
     return copy(VENDOR_NAME, buf, size);
   }
+  CHIP_ERROR GetHardwareVersionString(char *buf, size_t size) override {
+    return copy(HARDWARE_VERSION, buf, size);
+  }
   CHIP_ERROR GetProductURL(char *buf, size_t size) override {
     return copy(PRODUCT_URL, buf, size);
+  }
+  CHIP_ERROR GetLocalConfigDisabled(bool &disabled) override {
+    disabled = local_config_disabled;
+    return CHIP_NO_ERROR;
+  }
+  CHIP_ERROR SetLocalConfigDisabled(bool disabled) override {
+    if (disabled != local_config_disabled && local_config_handler != nullptr)
+      local_config_handler(disabled);
+    return CHIP_NO_ERROR;
   }
   CHIP_ERROR GetProductName(char *buf, size_t size) override {
     char name[32];
@@ -55,3 +71,14 @@ void device_info_install() {
 }
 
 const char *device_info_product_url() { return PRODUCT_URL; }
+
+void device_info_on_local_config_write(void (*handler)(bool disabled)) {
+  local_config_handler = handler;
+}
+
+bool device_info_set_local_config_disabled(bool disabled) {
+  if (local_config_disabled == disabled)
+    return false;
+  local_config_disabled = disabled;
+  return true;
+}

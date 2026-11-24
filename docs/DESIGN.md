@@ -46,6 +46,9 @@ Why it looks like this:
 - Sleep, Display and Child Lock are plug-in units because Apple Home has no purifier control for any of them, and an outlet is the least misleading tile on offer.
 - The purifier has an On/Off cluster because Apple Home needs one. Without it, Home turns the purifier on by writing FanMode High, which fights with setting Auto.
 - Sleep reports as the lowest speed. The fan runs slower than speed 1 in Sleep and Matter has nothing below it.
+- Sleep is also the fan's "sleep wind" setting, which the spec defines as slowing to a final minimum speed. That is Matter's own slot for it. Apple Home does not show wind settings, so the Sleep switch stays. Other controllers can show it as a fan mode. Writing it from the matter.js shell puts the purifier in Sleep and back. No controller with a screen has been tried.
+- Child lock is also Basic Information's LocalConfigDisabled, which the spec defines as disabling configuration through the device's own interface. Same reasoning, and the same test: writing it from the matter.js shell moved the Child Lock switch both ways. The spec says that setting must never block a factory reset. Here it does, at first: the controller ignores the Wi-Fi button while locked, so the reset hold never reaches us. The lock comes off at the panel, though, and then the hold works. So the reset is two steps from the purifier, never out of reach. Removing the purifier from its controller resets it either way.
+- The purifier's four air quality levels are sent as Good, Good, Moderate and Poor. Levoit calls the first two "very good" and "good". Apple Home shows only three levels for Matter, so two had to share, and this keeps the step from fine to getting worse visible.
 
 ## Code
 
@@ -56,7 +59,7 @@ Why it looks like this:
 | `main/matter_setup` | Builds the endpoints, turns controller writes into requests, pushes state into the clusters. |
 | `main/ota` | Update, log and filter endpoints, and the check that decides whether a new image stays. |
 | `main/commissionable_data` | Reads the setup code verifier from the factory partition. |
-| `main/device_info` | Vendor and product names. |
+| `main/device_info` | Vendor and product names, product URL, and child lock as LocalConfigDisabled. |
 
 Two tasks. The UART task owns the serial port and all purifier state. The Matter task owns every cluster. One queue runs each way between them, so neither touches the other's data.
 
@@ -119,6 +122,8 @@ Holding Sleep for three seconds clears it, as on stock. `tools/filter.sh` sets i
 Apple Home can deliver Matter updates, but only ones published to the Matter ledger under a vendor account. We have no vendor account. So updates are an authenticated `POST /ota` on the purifier.
 
 The token is per purifier. `factory.sh` generates it and stores a salted SHA-256 hash in the factory partition. `POST /ota/token`, authorised with the current token, replaces it. A factory reset removes the replacement. With no token in the factory data the update server does not start.
+
+It is plain HTTP. The token and the image cross your network unencrypted, and the image is not signed. Anyone who can read your Wi-Fi traffic can take the token, and anyone with the token can replace the firmware. That is the same trust ESPHome's updates ask for. TLS on the chip would cost memory this board does not have to spare.
 
 A new image stays only if, within two minutes of booting, the network is up, the update server is running and the purifier's controller is answering. Otherwise the bootloader goes back to the previous image. An image that could not be updated again never survives.
 
@@ -253,3 +258,4 @@ Read from tuct's recordings. Not written down there, as far as we found.
 - Whether the running-speed byte rises in auto. It should.
 - What status offset 6 is.
 - Whether any of this holds for the 200S, 400S or 600S.
+- How a controller other than Apple Home presents any of it. Only the matter.js shell has been tried, and it has no screen.

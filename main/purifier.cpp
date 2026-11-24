@@ -171,10 +171,9 @@ void handle_request(const Request &request, uint32_t now_ms) {
   case RequestKind::SLEEP:
     apply_plan(plan_sleep(current, request.value != 0), now_ms);
     break;
-  case RequestKind::DISPLAY: {
+  case RequestKind::DISPLAY:
     apply_plan(plan_display(current, request.value != 0), now_ms);
     break;
-  }
   case RequestKind::CHILD_LOCK:
     apply_plan(plan_child_lock(current, request.value != 0), now_ms);
     break;

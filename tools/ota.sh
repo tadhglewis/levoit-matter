@@ -9,16 +9,7 @@ usage() {
 . "$(dirname "$0")/common.sh"
 HOST="$1"
 [ -n "$HOST" ] || usage
-if [ -n "$LEVOIT_OTA_TOKEN" ]; then
-  TOKEN="$LEVOIT_OTA_TOKEN"
-elif [ -e "$SECRETS/ota-token.current" ]; then
-  TOKEN=$(cat "$SECRETS/ota-token.current")
-elif [ -e "$SECRETS/ota-token.txt" ]; then
-  TOKEN=$(cat "$SECRETS/ota-token.txt")
-else
-  echo "no update token for '$DEVICE' in $SECRETS" >&2
-  exit 1
-fi
+TOKEN=$(read_token)
 
 if [ "$2" = "--set-token" ]; then
   [ -n "$3" ] || usage
@@ -34,6 +25,7 @@ if [ "$2" = "--set-token" ]; then
 fi
 
 IMAGE="${2:-$FIRMWARE/levoit_matter.bin}"
+[ -e "$IMAGE" ] || { echo "no image at $IMAGE. Build it first." >&2; exit 1; }
 curl --fail-with-body --show-error --max-time 600 \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/octet-stream" \

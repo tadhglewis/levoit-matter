@@ -72,6 +72,12 @@ public:
     return Status::UnsupportedCommand;
   }
 
+  void OnWindSettingChanged(chip::BitMask<FanControl::WindBitmap> value) override {
+    if (pushing || !levoit::purifier_ready())
+      return;
+    post(RequestKind::SLEEP, value.Has(FanControl::WindBitmap::kSleepWind) ? 1 : 0);
+  }
+
   void OnFanDriveStateChanged(const FanControl::FanDriveState &state) override {
     if (pushing || !levoit::purifier_ready())
       return;
@@ -180,6 +186,10 @@ void apply_view(const MatterView &view) {
       fan->SetPercentCurrent(view.percent_current);
       fan->SetSpeedCurrent(view.speed_current);
     }
+    chip::BitMask<FanControl::WindBitmap> wind;
+    if (view.sleep)
+      wind.Set(FanControl::WindBitmap::kSleepWind);
+    fan->SetWindSetting(wind);
   }
 
   if (auto *filter = ResourceMonitoring::GetClusterInstance(
@@ -206,6 +216,10 @@ void apply_view(const MatterView &view) {
   }
 
   report_switch(purifier_endpoint, view.fan_mode != levoit::FanModeView::OFF);
+  if (device_info_set_local_config_disabled(view.child_lock))
+    esp_matter::data_model::provider::get_instance().ReportAttributeChanged(
+        chip::app::AttributePathParams(0, BasicInformation::Id,
+                                       BasicInformation::Attributes::LocalConfigDisabled::Id));
   report_switch(sleep_endpoint, view.sleep);
   report_switch(display_endpoint, view.display);
   report_switch(child_lock_endpoint, view.child_lock);
@@ -338,6 +352,10 @@ bool create_purifier_endpoint(esp_matter::node_t *node) {
     return false;
   if (model.has_auto && cluster::fan_control::feature::fan_auto::add(fan) != ESP_OK)
     return false;
+  cluster::fan_control::feature::wind::config_t wind;
+  wind.wind_support = chip::to_underlying(FanControl::WindBitmap::kSleepWind);
+  if (cluster::fan_control::feature::wind::add(fan, &wind) != ESP_OK)
+    return false;
 
   cluster::on_off::config_t power;
   esp_matter::cluster_t *on_off =
@@ -466,6 +484,15 @@ esp_err_t matter_setup_start() {
       esp_matter::cluster::basic_information::attribute::create_product_url(
           basic, product_url, strlen(product_url)) == nullptr)
     ESP_LOGW(TAG, "product URL not added");
+  if (basic == nullptr ||
+      esp_matter::cluster::basic_information::attribute::create_local_config_disabled(
+          basic, false) == nullptr)
+    ESP_LOGW(TAG, "local config lock not added");
+  device_info_on_local_config_write([](bool disabled) {
+    if (pushing || !levoit::purifier_ready())
+      return;
+    post(RequestKind::CHILD_LOCK, disabled ? 1 : 0);
+  });
 
   if (!create_purifier_endpoint(node))
     return ESP_FAIL;
@@ -497,18 +524,16 @@ esp_err_t matter_setup_start() {
     attach_delegates();
     if (!has_fabric())
       set_wifi_led(levoit::WifiLed::BLINK);
-    uint8_t direction = 0xFF;
     if (auto *filter = ResourceMonitoring::GetClusterInstance(
             purifier_endpoint, HepaFilterMonitoring::Id)) {
-      direction = static_cast<uint8_t>(filter->GetDegradationDirection());
       uint8_t percent = levoit::purifier_filter_percent();
       filter->UpdateCondition(percent);
       filter->UpdateChangeIndication(
           static_cast<ResourceMonitoring::ChangeIndicationEnum>(
               levoit::change_indication_from_percent(percent)));
     }
-    ESP_LOGI(TAG, "filter degradation direction=%u (1 is Down), fabrics=%u",
-             direction, chip::Server::GetInstance().GetFabricTable().FabricCount());
+    ESP_LOGI(TAG, "paired controllers: %u",
+             chip::Server::GetInstance().GetFabricTable().FabricCount());
   });
   if (scheduled != CHIP_NO_ERROR)
     ESP_LOGW(TAG, "post-start work not scheduled: %" CHIP_ERROR_FORMAT, scheduled.Format());

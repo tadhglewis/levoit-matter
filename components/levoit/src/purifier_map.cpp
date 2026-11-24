@@ -34,7 +34,20 @@ uint8_t percent_to_level(uint8_t percent, uint8_t level_max) {
 }
 
 uint8_t air_quality_from_level(uint8_t level) {
-  return level >= 1 && level <= 4 ? level : 0;
+  constexpr uint8_t GOOD = 1;
+  constexpr uint8_t MODERATE = 3;
+  constexpr uint8_t POOR = 4;
+  switch (level) {
+  case 1:
+  case 2:
+    return GOOD;
+  case 3:
+    return MODERATE;
+  case 4:
+    return POOR;
+  default:
+    return 0;
+  }
 }
 
 uint8_t change_indication_from_percent(uint8_t percent) {

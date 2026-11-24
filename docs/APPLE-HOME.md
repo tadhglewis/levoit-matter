@@ -12,7 +12,7 @@ Apple documents almost none of it. "Observed" means we watched it happen, mostly
 | Does Home show an Air Quality Sensor? | Yes | Observed |
 | Can a device name its own parts? | No | Observed, reported |
 | Can a device set its default name? | No | Observed, reported |
-| Can air quality read "Excellent"? | No | Observed |
+| Can air quality read "Excellent"? | No. Home shows only Good, Fair and Poor for Matter. | Observed |
 | Can you reset the filter from Home? | No | Observed |
 | Will Home deliver firmware updates? | Not without a vendor account | Apple's guide |
 | Does Home notice an update changed something? | Yes, if the version number went up | Observed |
@@ -30,7 +30,7 @@ Apple documents almost none of it. "Observed" means we watched it happen, mostly
 
 ### Parts of a device
 
-Three On/Off endpoints arrive as "Power point", "Power point 2" and "Power point 3". You rename them by hand and lose the names on a re-pair.
+Three On/Off endpoints arrive as "Power point 2", "Power point 3" and "Power point", which are endpoints 3, 4 and 5: Sleep, Display and Child Lock. The unnumbered name goes to the last endpoint, not the first. Seen on one pairing under iOS 27. You rename them by hand and lose the names on a re-pair. [FLASHING.md](../FLASHING.md#rename-the-switches) has the steps.
 
 | Mechanism | Result | Basis |
 |---|---|---|
@@ -39,7 +39,7 @@ Three On/Off endpoints arrive as "Power point", "Power point 2" and "Power point
 | Descriptor TagList with a label per tag | Ignored | Observed. We tagged them "Sleep", "Display" and "Child Lock" and re-paired. Also [matterbridge-hass #86](https://github.com/Luligu/matterbridge-hass/discussions/86), and an Apple engineer saying tags are not a supported way to shape presentation, [forum 852549](https://developer.apple.com/forums/thread/852549). |
 | NodeLabel on bridged devices behind an Aggregator | Shown | Reported by two developers, [esp-matter #914](https://github.com/espressif/esp-matter/issues/914). We did not try it. |
 
-One caveat on our TagList test. The firmware attached the labels without error, but we had no second controller to read them back.
+The labels are really there. A second controller, the matter.js shell, read "Sleep", "Display" and "Child Lock" back off the three endpoints. Home has them and does not use them.
 
 The bridge route would probably work, and we did not take it. The switches would become three separate accessories, Home would list the purifier as a bridge, and the one report we found of a bridge sharing a node with an ordinary endpoint is of it breaking, [connectedhomeip #30481](https://github.com/project-chip/connectedhomeip/issues/30481).
 
@@ -80,17 +80,26 @@ Home does the same with a switch. Turn one on that the device immediately report
 
 ## Air quality
 
-Home has five levels, Matter has six, and Home matches them by name.
+Home has five levels and uses three of them for Matter. Observed: we forced each Matter value in turn, with PM2.5 held at 20, and recorded the screen.
 
-| Home | Matter |
+| Matter sends | Home shows |
 |---|---|
-| Excellent | Nothing |
-| Good | Good, Matter's best |
+| Good | Good |
 | Fair | Fair |
-| Inferior | Not confirmed |
+| Moderate | Fair |
 | Poor | Poor |
+| Very Poor | Poor |
+| Extremely Poor | Poor |
+| Unknown | Unknown |
 
-A purifier reporting its cleanest reading shows "Good", one below the top of Home's scale. An automation on "Excellent" never fires. We have only seen "Good" on screen.
+- "Excellent" and "Inferior" cannot be reached from Matter. An automation on either never fires.
+- Moderate looks the same as Fair, and the two worst values look the same as Poor. A device with more than three levels loses the difference in Home.
+- A purifier with four levels has to double up. We send the best two as Good, so that Fair in Home means the air has actually got worse.
+- Home does not work the level out from PM2.5. With the level held at Good we sent a PM2.5 of 1 and then 300. Home showed the number and kept saying Good.
+
+## Wind settings
+
+Home does not show Fan Control's wind settings. Reported, [Apple forum 837127](https://developer.apple.com/forums/thread/837127). We set sleep wind on the purifier for other controllers and saw nothing change in Home. It works from the matter.js shell: writing it puts the purifier in Sleep.
 
 ## Filter
 
@@ -135,7 +144,7 @@ So this firmware has its own HTTP update.
 - Child lock as a property of the purifier.
 - Names for the switches, supplied by the device.
 - All five air quality levels.
-- A filter reset in Home.
+- Possibly a filter reset. HomeKit has a characteristic for it. We have not checked that Home shows a button.
 
 It costs QR-code Wi-Fi setup, which needs Apple's licensed accessory programme, and every controller that is not Apple's.
 
