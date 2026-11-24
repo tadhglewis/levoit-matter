@@ -51,6 +51,7 @@ struct Plan {
 };
 
 Plan plan_fan_off(const PurifierState &state);
+Plan plan_power_on(const PurifierState &state);
 Plan plan_fan_auto(const ModelSpec &model, const PurifierState &state);
 Plan plan_fan_level(const ModelSpec &model, const PurifierState &state,
                     uint8_t level);

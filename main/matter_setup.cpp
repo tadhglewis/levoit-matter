@@ -7,7 +7,6 @@
 
 #include <esp_log.h>
 #include <esp_matter.h>
-#include <esp_timer.h>
 #include <sdkconfig.h>
 
 #include <app-common/zap-generated/ids/Attributes.h>
@@ -53,11 +52,6 @@ bool pushing = false;
 constexpr uint32_t NO_ATTRIBUTE = 0xFFFFFFFF;
 uint32_t fan_written_attribute = NO_ATTRIBUTE;
 uint8_t fan_written_value = 0;
-constexpr int64_t AUTO_FOLLOW_UP_US = 1500 * 1000;
-int64_t auto_written_us = -AUTO_FOLLOW_UP_US;
-constexpr uint32_t TURN_ON_SETTLE_MS = 250;
-bool turn_on_pending = false;
-uint8_t turn_on_value = 0;
 std::atomic<bool> network_ready{false};
 
 void post(RequestKind kind, uint8_t value = 0) {
@@ -89,49 +83,18 @@ public:
              static_cast<unsigned>(state.mode),
              state.percentSetting.IsNull() ? -1 : state.percentSetting.Value(),
              state.speedSetting.IsNull() ? -1 : state.speedSetting.Value());
-    bool turn_on_only = written == FanControl::Attributes::FanMode::Id &&
-                        (state.mode == FanControl::FanModeEnum::kHigh ||
-                         state.mode == FanControl::FanModeEnum::kOn);
-    if (!turn_on_only)
-      turn_on_pending = false;
     switch (state.mode) {
     case FanControl::FanModeEnum::kOff:
       post(RequestKind::FAN_OFF);
       return;
     case FanControl::FanModeEnum::kAuto:
     case FanControl::FanModeEnum::kSmart:
-      auto_written_us = esp_timer_get_time();
       post(RequestKind::FAN_AUTO);
       return;
     default:
       break;
     }
     if (written == FanControl::Attributes::FanMode::Id) {
-      if (turn_on_only && esp_timer_get_time() - auto_written_us < AUTO_FOLLOW_UP_US) {
-        ESP_LOGI(TAG, "ignoring the turn-on write that follows Auto");
-        post(RequestKind::FAN_AUTO);
-        return;
-      }
-      if (turn_on_only) {
-        turn_on_value = state.mode == FanControl::FanModeEnum::kHigh ? 1 : 0;
-        if (turn_on_pending)
-          return;
-        turn_on_pending = true;
-        CHIP_ERROR err = chip::DeviceLayer::SystemLayer().StartTimer(
-            chip::System::Clock::Milliseconds32(TURN_ON_SETTLE_MS),
-            [](chip::System::Layer *, void *) {
-              if (!turn_on_pending)
-                return;
-              turn_on_pending = false;
-              post(RequestKind::FAN_RESUME, turn_on_value);
-            },
-            nullptr);
-        if (err != CHIP_NO_ERROR) {
-          turn_on_pending = false;
-          post(RequestKind::FAN_RESUME, turn_on_value);
-        }
-        return;
-      }
       if (state.mode == FanControl::FanModeEnum::kLow)
         post(RequestKind::FAN_LEVEL, 1);
       else if (state.mode == FanControl::FanModeEnum::kMedium)
@@ -234,6 +197,7 @@ void apply_view(const MatterView &view) {
         Pm25ConcentrationMeasurement::Attributes::MeasuredValue::Id, &pm25);
   }
 
+  report_switch(purifier_endpoint, view.fan_mode != levoit::FanModeView::OFF);
   report_switch(sleep_endpoint, view.sleep);
   report_switch(display_endpoint, view.display);
   report_switch(child_lock_endpoint, view.child_lock);
@@ -266,6 +230,11 @@ esp_err_t attribute_callback(esp_matter::attribute::callback_type_t type,
   uint8_t on = value->val.b ? 1 : 0;
   if (endpoint_id == 0)
     return ESP_OK;
+  if (endpoint_id == purifier_endpoint) {
+    ESP_LOGI(TAG, "power write %u", on);
+    post(RequestKind::POWER, on);
+    return ESP_OK;
+  }
   if (endpoint_id == sleep_endpoint)
     post(RequestKind::SLEEP, on);
   else if (endpoint_id == display_endpoint)
@@ -360,6 +329,10 @@ bool create_purifier_endpoint(esp_matter::node_t *node) {
   if (cluster::fan_control::feature::multi_speed::add(fan, &multi_speed) != ESP_OK)
     return false;
   if (model.has_auto && cluster::fan_control::feature::fan_auto::add(fan) != ESP_OK)
+    return false;
+
+  cluster::on_off::config_t power;
+  if (cluster::on_off::create(endpoint, &power, esp_matter::CLUSTER_FLAG_SERVER) == nullptr)
     return false;
 
   uint8_t filter_percent = levoit::purifier_filter_percent();

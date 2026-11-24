@@ -158,6 +158,9 @@ void handle_request(const Request &request, uint32_t now_ms) {
   case RequestKind::FAN_LEVEL:
     apply_plan(plan_fan_level(model, current, request.value), now_ms);
     break;
+  case RequestKind::POWER:
+    apply_plan(request.value != 0 ? plan_power_on(current) : plan_fan_off(current), now_ms);
+    break;
   case RequestKind::FAN_RESUME: {
     bool manual_on = current.power && current.mode == Mode::MANUAL;
     uint8_t level = manual_on ? (request.value != 0 ? model.level_max : current.level)

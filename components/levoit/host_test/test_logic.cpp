@@ -342,6 +342,9 @@ static void test_plans() {
   Plan to_auto = plan_fan_auto(CORE_300S, manual2);
   CHECK(to_auto.count == 1 && to_auto.commands[0].payload[0] == 0x02);
   CHECK(plan_fan_auto(CORE_300S, off).count == 2);
+  Plan power_on = plan_power_on(off);
+  CHECK(power_on.count == 1 && power_on.commands[0].command == 0x0100A0 && power_on.commands[0].payload[0] == 0x01);
+  CHECK(power_on.expected.power && plan_power_on(manual2).count == 0);
 
   CHECK(plan_sleep(sleeping, true).count == 0);
   Plan to_sleep = plan_sleep(manual2, true);

@@ -95,6 +95,17 @@ Plan plan_fan_off(const PurifierState &state) {
   return plan;
 }
 
+Plan plan_power_on(const PurifierState &state) {
+  Plan plan;
+  plan.expected = state;
+  if (state.power)
+    return plan;
+  plan.add(command_power(true));
+  plan.expected.power = true;
+  plan.expected_fields = FIELD_POWER;
+  return plan;
+}
+
 Plan plan_fan_auto(const ModelSpec &model, const PurifierState &state) {
   Plan plan;
   plan.expected = state;

@@ -36,7 +36,7 @@ flowchart LR
 
 | Endpoint | Device type | What it carries |
 |---|---|---|
-| 1 | Air Purifier | Fan Control with speeds and, where the model has it, Auto. HEPA Filter Monitoring with percent remaining, a change flag and a reset command. |
+| 1 | Air Purifier | Fan Control with speeds and, where the model has it, Auto. On/Off for power. HEPA Filter Monitoring with percent remaining, a change flag and a reset command. |
 | 2 | Air Quality Sensor | Air quality level and PM2.5. Omitted on models with no particle sensor. |
 | next three | On/Off Plug-in Unit | Sleep, Display, Child Lock |
 
@@ -206,7 +206,8 @@ Also observed, and worth knowing for anyone building a purifier.
 | Drag the slider | A stream of PercentSetting writes |
 | Tap Off | FanMode Off |
 
-- Home treats High as "turn on". The firmware waits 250 ms before acting on a High, and drops it if Auto arrives in that time or arrived up to 1.5 seconds before. A High on its own resumes the last manual speed.
+- With no On/Off cluster on the purifier, Home uses FanMode High to mean "turn on", so Auto from off arrives as two conflicting mode writes. The purifier endpoint now has an On/Off cluster, to give Home a separate way to turn it on. Whether Home uses it is not yet confirmed.
+- A FanMode High written from the mode control resumes the last manual speed, as the purifier's own button does.
 - Home does not read names for the parts of a device from semantic tag labels. Fixed Label and User Label are reported not to work either.
 - Home shows Matter's best air quality value, Good, one step below its own Excellent.
 - The default accessory name is always "Matter Accessory" for an uncertified device.

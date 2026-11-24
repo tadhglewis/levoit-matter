@@ -13,6 +13,7 @@ enum class RequestKind : uint8_t {
   FAN_AUTO,
   FAN_LEVEL,
   FAN_RESUME,
+  POWER,
   SLEEP,
   DISPLAY,
   CHILD_LOCK,
