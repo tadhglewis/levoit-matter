@@ -160,6 +160,8 @@ idf build
 ./tools/ota.sh <device-ip>
 ```
 
+Raise `PROJECT_VER_NUMBER` in `CMakeLists.txt` for every release. Apple Home only re-reads a purifier's details after an update if that number has gone up.
+
 The script reads the token from the device's `secrets/` folder. The purifier reboots into the new image. If Wi-Fi and the purifier link do not both come up within two minutes, it reboots back into the old one.
 
 To change the token, 12 to 64 characters with no spaces:

@@ -16,6 +16,7 @@ Each finding says where it comes from. "Observed" means we saw it on our own pur
 | Can the filter be reset from Home? | No | Observed |
 | Does the Identify button work? | Only if the endpoint declares an indicator | Observed in part |
 | Can Home serve firmware updates? | Only through the Matter ledger | Apple's guide |
+| Does Home notice changes after an update? | Yes for device details, if the software version number goes up | Observed |
 
 ## What renders
 
@@ -87,6 +88,11 @@ Home has five levels and Matter has six, and Home matches them by name, not by p
 
 So a purifier reporting its cleanest reading shows "Good", one step below the top of Home's scale, and an automation on "Excellent" never fires. We have only seen "Good" displayed. How Home places Moderate, Very Poor and Extremely Poor is unknown.
 
+## Siri
+
+- Siri has no notion of a purifier's sleep mode. "Turn on sleep mode on the air purifier" turned the purifier off.
+- An extra On/Off endpoint is only reachable by voice through the name the user gives its tile, or through a scene.
+
 ## Filter
 
 - Home shows HEPA Filter Monitoring's Condition as "Filter Life" and its ChangeIndication as "Filter Condition".
@@ -101,7 +107,8 @@ The naming screen during pairing has an Identify button. With the endpoint's Ide
 - **Bluetooth pairing with Wi-Fi handover works** with the SDK's default path. The phone sends Wi-Fi credentials over Bluetooth.
 - **Home creates two fabrics** on the device when it pairs.
 - **"Turn On Pairing Mode"** in the accessory's settings opens a window for a second controller and shows a one-time code. The code on the label does not work once the device is paired.
-- **Home reads a device's structure at pairing.** Developers report it does not notice endpoints being added or removed afterwards, so structural changes need a re-pair.
+- **Home re-reads a device's details when its software version number increases.** We changed VendorName in an update that also raised the version from 1 to 2, and the Manufacturer row changed without a re-pair. Earlier updates that kept the version at 1 changed nothing in Home. So every release has to bump the version.
+- **Whether Home also notices endpoints being added or removed after a version bump is untested.** Developers report it keeping old endpoints until the accessory is re-added, without saying whether their update raised the version.
 
 ## Firmware updates
 
