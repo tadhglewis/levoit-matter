@@ -1,100 +1,128 @@
 # levoit-matter
 
-Local Matter firmware for Levoit Core air purifiers. No cloud, no VeSync, no Home Assistant required. Pairs with Apple Home by QR code like a shop-bought device.
+Local Matter firmware for Levoit Core air purifiers. No cloud, no VeSync, no Home Assistant. Pairs with Apple Home by QR code like a shop-bought device.
 
-It replaces the firmware on the purifier's own ESP32. No extra hardware stays inside.
+It replaces the firmware on the purifier's own ESP32. Nothing extra goes inside.
 
-**Status: compiles, unit tests pass. Has never run on hardware.** If you flash this before that line changes, you are the test.
+**Status:** running on a Core 300S in Apple Home. The other models build from the same code and have never been flashed.
 
-## Supported models
+## Models
 
 | Model | Speeds | Auto | Air quality | State |
 |---|---|---|---|---|
-| Core 300S | 3 | Yes | Yes | The one being flashed. Untested on hardware. |
-| Core 200S | 3 | No | No | Decoder checked against recorded frames. Never flashed. |
-| Core 400S | 4 | Yes | Yes | From the reference driver. No recorded frames. Never flashed. |
-| Core 600S | 4 | Yes | Yes | Decoder checked against recorded frames. Never flashed. |
+| Core 300S | 3 | Yes | Yes | Works. Tested on a unit whose controller reports 1.0.0. |
+| Core 200S | 3 | No | No | Untested. Decoder checked against recorded frames. |
+| Core 400S | 4 | Yes | Yes | Untested. |
+| Core 600S | 4 | Yes | Yes | Untested. Decoder checked against recorded frames. |
 | Vital, Sprout, EverestAir | | | | No. Different protocol. |
-
-Only the Core 300S has an owner here. If you flash another model, keep the serial cable on and report what the log says.
 
 ## Features
 
 | Feature | In Apple Home |
 |---|---|
-| Power and fan speed | Purifier tile with a slider that snaps to the purifier's speeds |
-| Auto mode | Purifier mode. Unverified in Home. |
-| Filter life and change-filter flag | Filter status. Starts at 100%; `tools/filter.sh` sets it for a part-used filter. |
-| PM2.5 and air quality level | Air quality sensor |
-| Sleep, Display, Child Lock | Three separate switches |
+| Power | Tile, Siri. Turning on resumes the last mode and speed. |
+| Fan speed | Slider. Snaps to the purifier's speeds. |
+| Auto mode | Mode menu. Shows the speed the fan is actually running at. |
+| Sleep mode | Switch |
+| Display on and off | Switch |
+| Child lock | Switch |
+| Filter life | Percentage and a change-filter warning |
+| Air quality | Level and PM2.5 |
 | Pairing | Scan the QR code. The phone sends Wi-Fi over Bluetooth. |
-| Updates over Wi-Fi | Pushed from your machine. A bad image rolls itself back. |
-| Factory reset | Hold the Wi-Fi button for 15 seconds, or remove the purifier from Home. |
+| Identify | The Wi-Fi light changes while Home asks the purifier to identify itself |
 
-Not exposed: timer, auto-mode profiles, room size, the 200S night light, the 600S light sensor. Use Home automations.
+The purifier's own buttons keep working, and Home follows them.
 
-## Known limits
+Not exposed: timer, auto profiles, room size, the 200S night light, the 600S light sensor.
 
-- Sleep shows as Low speed with the Sleep switch on. Picking Low again does not leave Sleep. Use the switch or another speed.
-- The three switches show as outlet-style tiles. That is what Apple gives you.
-- Air quality never shows "Excellent" in Apple Home. Home's scale is Excellent, Good, Fair, Inferior, Poor. Matter's best value is "Good", and Home shows it as Good, one step below its top. The PM2.5 number is unaffected.
-- Test vendor ID. Apple shows an "uncertified accessory" prompt once. Tap through it.
-- No Matter OTA. Apple will not serve updates to uncertified devices, so updates are pushed over HTTP.
-- Free memory during Bluetooth pairing on the stock chip is unmeasured. It may not fit.
+## On the purifier
 
-## Quick start
+| Action | How |
+|---|---|
+| Factory reset | Hold the centre button for 15 seconds. The Wi-Fi light changes a few seconds in. Keep holding. Clears pairing and Wi-Fi and returns to pairing mode. |
+| Reset the filter | Hold Sleep for 3 seconds, until the filter light goes off. |
+| Wi-Fi light | Blinking: not connected or not paired. Solid: connected. |
+| Filter light | On when filter life is below 5%. |
 
-You need the case open, a 3.3 V USB serial adapter, and ESP-IDF 5.5.6.
+Removing the purifier from its last controller also factory-resets it.
+
+## From your computer
+
+| Task | Command |
+|---|---|
+| Update the firmware over Wi-Fi | `./tools/ota.sh <ip>` |
+| Set filter life, for a part-used filter | `./tools/filter.sh <ip> 60` |
+| Read the purifier's log | `./tools/log.sh <ip>` |
+| Follow the log live | `./tools/watch.sh <ip>` |
+| Change the update token | `./tools/ota.sh <ip> --set-token <new>` |
+
+An update that fails to come up healthy rolls itself back.
+
+## Install
+
+You need the case open, a 3.3 V USB serial adapter and ESP-IDF 5.5.6.
 
 ```bash
-cp sdkconfig.local.example sdkconfig.local   # model
+cp sdkconfig.local.example sdkconfig.local   # pick the model
 idf.py build
 ./tools/factory.sh                           # this purifier's setup code, QR label and update token
-./tools/flash.sh /dev/cu.usbserial-XXXX      # first run backs up the stock firmware, second run flashes
-./tools/monitor.sh /dev/cu.usbserial-XXXX
+./tools/flash.sh /dev/cu.usbserial-XXXX      # first run backs up the stock firmware
+./tools/flash.sh /dev/cu.usbserial-XXXX      # second run flashes
 ```
 
-Scan `devices/purifier/secrets/qrcode.png` in Apple Home.
+Then scan `devices/purifier/secrets/qrcode.png` in Apple Home.
 
-That is the short version. **Read [`FLASHING.md`](FLASHING.md) before you open the purifier.** It covers the toolchain, wiring, backing up the stock firmware, pairing, updates and what to check on the first boot.
+**Read [`FLASHING.md`](FLASHING.md) before you open the purifier.** It covers wiring, the backup, and what to check on the first boot.
 
-## Settings
-
-Set in `sdkconfig.local` before the first build, or in `idf.py menuconfig` under "Levoit purifier".
-
-| Setting | Default | Notes |
-|---|---|---|
-| `CONFIG_LEVOIT_MODEL_CORE300S=y` | Core 300S | Or `CORE200S`, `CORE400S`, `CORE600S`. |
-| `CONFIG_LEVOIT_UART_TX_GPIO`, `_RX_GPIO` | Per model | Only change for a board revision with swapped pins. |
+To flash from a computer without the build tools, `./tools/bundle.sh --with-device` packs the firmware and tools into one zip.
 
 ## Per-purifier secrets
 
-Nothing secret is in the firmware. The same build goes on every purifier of a model, and `tools/factory.sh` makes the two things that are unique to one unit:
+Nothing secret is in the firmware. The same build goes on every purifier of a model. `tools/factory.sh` makes the two things unique to one unit:
 
-| Secret | Where you keep it | What the purifier stores |
+| Secret | You keep | The purifier stores |
 |---|---|---|
 | Matter setup code | `secrets/qrcode.png`, `secrets/setup-codes.csv` | A one-way verifier |
 | Update token | `secrets/ota-token.txt` | A salted hash |
 
-Each purifier gets a folder, `devices/<name>/`, holding its factory data, its stock firmware backup, and a `secrets/` subfolder with the two files above. The folder is gitignored. Back it up: neither secret can be read back off the chip.
+They live in `devices/<name>/`, with the purifier's stock firmware backup. The folder is gitignored. **Back it up.** Neither secret can be read back off the chip.
 
-On the purifier, both live in a small factory partition that firmware updates and factory resets leave alone.
+A purifier flashed without this falls back to the public Matter test code and has updates over Wi-Fi turned off.
 
-The update token can be changed over Wi-Fi with `./tools/ota.sh <ip> --set-token <new>`. A factory reset returns to the original.
+## Limits
 
-A purifier flashed without factory data falls back to the public Matter test code, has updates over Wi-Fi turned off, and says so in its log. Fine on a bench, not in a home.
+These are Apple Home's, and the firmware cannot work around them. Details in [`docs/APPLE-HOME.md`](docs/APPLE-HOME.md).
+
+- The three switches arrive as unnamed outlet tiles. Rename them once in Home.
+- Siri only reaches the switches by the names you give them.
+- Air quality tops out at "Good". Home's "Excellent" has no Matter equivalent.
+- No filter reset in Home. Use the Sleep button.
+- Home shows an "uncertified accessory" prompt once, and always offers "Matter Accessory" as the name.
+- No firmware updates through Home.
+
+And the firmware's own:
+
+- Sleep shows as the lowest speed with the Sleep switch on.
+- After a reboot, controls can be ignored for up to a minute, until the purifier reports its state.
+- Filter life starts at 100% whatever the filter's age. Set it with `tools/filter.sh`.
+- Free memory during Bluetooth pairing has dipped as low as 9.6 KB on the stock chip.
+
+`CONFIG_LEVOIT_DISPLAY_SWITCH` and `CONFIG_LEVOIT_CHILD_LOCK_SWITCH` leave out those two switches if you want fewer tiles.
 
 ## How it works
 
-One ESP-IDF application on `espressif/esp_matter` 1.6.1, 1.48 MB in a 1.94 MB slot. The purifier protocol is a separate component in `components/levoit/` with its own unit tests. [`docs/DESIGN.md`](docs/DESIGN.md) explains the design and why it is built this way. [`docs/APPLE-HOME.md`](docs/APPLE-HOME.md) records how Apple Home behaves with it, including the limits we could not work around.
+One ESP-IDF application on `espressif/esp_matter` 1.6.1, 1.48 MB in a 1.94 MB slot. The purifier protocol is a separate component in `components/levoit/` with its own unit tests.
+
+- [`docs/DESIGN.md`](docs/DESIGN.md): the design, and the purifier's serial protocol, including the parts nobody had documented.
+- [`docs/APPLE-HOME.md`](docs/APPLE-HOME.md): how Apple Home behaves with a Matter purifier.
 
 ## Related
 
-An ESPHome config for the same purifier lives in [esphome-levoit-matter](https://github.com/tadhglewis/esphome-levoit-matter). It is best effort and depends on changes to esphome-matter that are not upstream yet.
+An ESPHome config for the same purifier is in [esphome-levoit-matter](https://github.com/tadhglewis/esphome-levoit-matter). Best effort.
 
 ## Credits
 
-The UART protocol, the per-model layouts and the recorded frames used in the tests come from [tuct/levoit](https://github.com/tuct/levoit), with notes from [mulcmu/esphome-levoit-core300s](https://github.com/mulcmu/esphome-levoit-core300s).
+The UART protocol, the per-model layouts and the recorded frames in the tests come from [tuct/levoit](https://github.com/tuct/levoit), with notes from [mulcmu/esphome-levoit-core300s](https://github.com/mulcmu/esphome-levoit-core300s).
 
 ## Licence
 
