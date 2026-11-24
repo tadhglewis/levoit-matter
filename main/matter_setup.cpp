@@ -377,12 +377,27 @@ bool create_air_quality_endpoint(esp_matter::node_t *node) {
              endpoint, &pm25, esp_matter::CLUSTER_FLAG_SERVER) != nullptr;
 }
 
-uint16_t create_switch_endpoint(esp_matter::node_t *node) {
+uint16_t create_switch_endpoint(esp_matter::node_t *node, uint8_t number,
+                                const char *label) {
+  constexpr uint8_t NAMESPACE_COMMON_NUMBER = 0x07;
   esp_matter::endpoint::on_off_plug_in_unit::config_t config;
   esp_matter::endpoint_t *endpoint =
       esp_matter::endpoint::on_off_plug_in_unit::create(
           node, &config, esp_matter::ENDPOINT_FLAG_NONE, nullptr);
-  return endpoint == nullptr ? 0 : esp_matter::endpoint::get_id(endpoint);
+  if (endpoint == nullptr)
+    return 0;
+
+  chip::app::DataModel::Provider::SemanticTag tag;
+  tag.mfgCode.SetNull();
+  tag.namespaceID = NAMESPACE_COMMON_NUMBER;
+  tag.tag = number;
+  tag.label.SetValue(chip::app::DataModel::MakeNullable(chip::CharSpan::fromCharString(label)));
+  esp_matter::cluster_t *descriptor = esp_matter::cluster::get(endpoint, Descriptor::Id);
+  if (descriptor == nullptr ||
+      esp_matter::cluster::descriptor::feature::tag_list::add(descriptor) != ESP_OK ||
+      esp_matter::endpoint::set_semantic_tags(endpoint, &tag, 1) != ESP_OK)
+    ESP_LOGW(TAG, "label '%s' not attached", label);
+  return esp_matter::endpoint::get_id(endpoint);
 }
 
 void print_onboarding_codes(bool factory) {
@@ -425,16 +440,16 @@ esp_err_t matter_setup_start() {
   if (levoit::has_air_quality(levoit::purifier_model()) &&
       !create_air_quality_endpoint(node))
     return ESP_FAIL;
-  sleep_endpoint = create_switch_endpoint(node);
+  sleep_endpoint = create_switch_endpoint(node, 1, "Sleep");
   if (sleep_endpoint == 0)
     return ESP_FAIL;
 #if CONFIG_LEVOIT_DISPLAY_SWITCH
-  display_endpoint = create_switch_endpoint(node);
+  display_endpoint = create_switch_endpoint(node, 2, "Display");
   if (display_endpoint == 0)
     return ESP_FAIL;
 #endif
 #if CONFIG_LEVOIT_CHILD_LOCK_SWITCH
-  child_lock_endpoint = create_switch_endpoint(node);
+  child_lock_endpoint = create_switch_endpoint(node, 3, "Child Lock");
   if (child_lock_endpoint == 0)
     return ESP_FAIL;
 #endif
