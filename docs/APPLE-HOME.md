@@ -71,7 +71,8 @@ Observed in the firmware's log, which records each write and which attribute it 
 
 - **Home has no Low, Medium or High control.** The mode menu only ever writes Off, Auto or High.
 - **Home uses FanMode = High to mean "turn on"** when the purifier endpoint has no On/Off cluster. Tapping Auto from off therefore produces two conflicting mode writes, and because the order varies, obeying them in sequence sometimes leaves the purifier in manual.
-- **We added an On/Off cluster to the purifier endpoint** to give Home a separate way to turn it on. Whether Home uses it is not yet confirmed.
+- **With an On/Off cluster on the purifier endpoint, Home uses it for power.** Turning the purifier on and off from Home or Siri arrives as On and Off commands, and the FanMode = High writes stop. This is the fix for the conflicting pair above. What Home sends for Auto from off in this arrangement is not yet observed.
+- **The cluster must accept On and Toggle as well as Off.** esp-matter's `cluster::on_off::create` only registers Off. With only that, Home's On was refused as an unsupported command and Siri said "no response". Add `command::create_on` and `command::create_toggle`.
 - **The slider sends raw percentages**, not steps. The firmware rounds to the nearest speed and reports the stepped value back, so the slider snaps.
 
 ## Air quality
