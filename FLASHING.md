@@ -166,9 +166,9 @@ A factory reset puts the original token back.
 
 ## 8. Reset
 
-Factory reset: hold the Wi-Fi button for 15 seconds. The Wi-Fi light changes a few seconds in. Keep holding. Letting go early cancels it. Child lock blocks the button, so turn the lock off at the panel first.
+Factory reset: hold On/Off for 15 seconds. That is the [manual's](https://files.vesync.com/desc/LEVOIT_Core300S_USER_MANUAL.pdf) own reset (page 7). The Wi-Fi symbol above On/Off is a light, not a button. The Wi-Fi light changes a few seconds in. Keep holding. Letting go early cancels it. Child lock blocks the button, so turn the lock off at the panel first.
 
-Filter reset: hold Sleep for 3 seconds, until the filter light goes off.
+Filter reset: hold Sleep for 3 seconds, until the filter light goes off ([manual](https://files.vesync.com/desc/LEVOIT_Core300S_USER_MANUAL.pdf), page 5).
 
 If the purifier is beyond help, erase it and start again:
 

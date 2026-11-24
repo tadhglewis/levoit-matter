@@ -33,8 +33,8 @@ Timer, auto profiles and room size are not exposed.
 
 | To               | Do                                                              |
 | ---------------- | --------------------------------------------------------------- |
-| Factory reset    | Hold the Wi-Fi button for 15 seconds. Clears pairing and Wi-Fi. Turn child lock off first. |
-| Reset the filter | Hold Sleep for 3 seconds, until the filter light goes off       |
+| Factory reset    | Hold On/Off for 15 seconds, as the [manual](https://files.vesync.com/desc/LEVOIT_Core300S_USER_MANUAL.pdf) says (page 7). Clears pairing and Wi-Fi. Turn child lock off first. |
+| Reset the filter | Hold Sleep for 3 seconds, until the filter light goes off ([manual](https://files.vesync.com/desc/LEVOIT_Core300S_USER_MANUAL.pdf), page 5) |
 
 Wi-Fi light blinking means not paired or not connected. Solid means connected. The filter light comes on below 5%.
 

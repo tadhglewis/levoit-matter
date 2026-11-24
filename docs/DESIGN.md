@@ -47,7 +47,7 @@ Why it looks like this:
 - The purifier has an On/Off cluster because Apple Home needs one. Without it, Home turns the purifier on by writing FanMode High, which fights with setting Auto.
 - Sleep reports as the lowest speed. The fan runs slower than speed 1 in Sleep and Matter has nothing below it.
 - Sleep is also the fan's "sleep wind" setting, which the spec defines as slowing to a final minimum speed. That is Matter's own slot for it. Apple Home does not show wind settings, so the Sleep switch stays. Other controllers can show it as a fan mode. Writing it from the matter.js shell puts the purifier in Sleep and back. No controller with a screen has been tried.
-- Child lock is also Basic Information's LocalConfigDisabled, which the spec defines as disabling configuration through the device's own interface. Same reasoning, and the same test: writing it from the matter.js shell moved the Child Lock switch both ways. The spec says that setting must never block a factory reset. Here it does, at first: the controller ignores the Wi-Fi button while locked, so the reset hold never reaches us. The lock comes off at the panel, though, and then the hold works. So the reset is two steps from the purifier, never out of reach. Removing the purifier from its controller resets it either way.
+- Child lock is also Basic Information's LocalConfigDisabled, which the spec defines as disabling configuration through the device's own interface. Same reasoning, and the same test: writing it from the matter.js shell moved the Child Lock switch both ways. The spec says that setting must never block a factory reset. Here it does, at first: the controller ignores On/Off while locked, as the manual says of every button (page 9), so the reset hold never reaches us. The lock comes off at the panel, though, and then the hold works. So the reset is two steps from the purifier, never out of reach. Removing the purifier from its controller resets it either way.
 - The purifier's four air quality levels are sent as Good, Good, Moderate and Poor. Levoit calls the first two "very good" and "good". Apple Home shows only three levels for Matter, so two had to share, and this keeps the step from fine to getting worse visible.
 
 ## Code
@@ -114,7 +114,7 @@ Holding Sleep for three seconds clears it, as on stock. `tools/filter.sh` sets i
 - With no factory data the firmware uses the public Matter test code and logs a warning.
 - The attestation certificate is the SDK's test one. A real one needs a vendor ID. That is why Home says "uncertified".
 - Bluetooth is used for pairing and then shut down to free memory. It cannot restart without a reboot. So removing the purifier from its last controller triggers a full factory reset, which is the only way back to pairing mode.
-- The purifier's controller reports a held Wi-Fi button. Eleven seconds of holding after the first report, about fifteen from the press, triggers a factory reset. An earlier build could reset the moment the hold registered: the hold was timestamped a few milliseconds after the clock reading used to check it, and the unsigned subtraction wrapped. There is a test for it now.
+- The purifier's controller reports a held On/Off button. The manual's own reset is a 15-second hold of On/Off (page 7). Eleven seconds of holding after the first report, about fifteen from the press, triggers a factory reset. An earlier build could reset the moment the hold registered: the hold was timestamped a few milliseconds after the clock reading used to check it, and the unsigned subtraction wrapped. There is a test for it now.
 - Identify inverts the Wi-Fi light.
 
 ## Updates
@@ -222,9 +222,9 @@ We have not watched offset 9 rise in auto. The reading matches mulcmu's notes on
 
 The raw frames behind all of this, both directions, are in [tuct/levoit#140](https://github.com/tuct/levoit/pull/140), with a decoder for that driver. [#141](https://github.com/tuct/levoit/pull/141) adds the status request.
 
-**Button hold, `01 02 D1`.** Sent when the Wi-Fi button is held. Payload `02` when the hold registers, a few seconds in, and `03` on release. Stock firmware logs it as "netcfg is start".
+**Button hold, `01 02 D1`.** Sent when On/Off is held. The Wi-Fi symbol above it is a light; the manual lists no Wi-Fi button (page 4). Payload `02` when the hold registers, a few seconds in, and `03` on release. Stock firmware logs it as "netcfg is start".
 
-**Filter reset, `01 E4 A5`, payload `00`.** Sent when Sleep is held for three seconds. The controller turns its own filter light off. tuct documents this for the 200S. A hold that is too short toggles Sleep. The filter symbol on the panel is an indicator and holding it does nothing.
+**Filter reset, `01 E4 A5`, payload `00`.** Sent when Sleep is held for three seconds, the manual's filter reset (page 5). The controller turns its own filter light off. tuct documents this for the 200S. A hold that is too short toggles Sleep. The filter symbol on the panel is an indicator and holding it does nothing.
 
 **Our acknowledgement works.** We answer every message with type `12`, our own counter and byte 4 set to `FF`, which is what tuct's driver sends. This controller accepts it.
 
@@ -258,7 +258,7 @@ Read from tuct's recordings. Not written down there, as far as we found.
 ## Not known
 
 - Why free memory during Bluetooth pairing was 9.6 KB once and 41 KB another time.
-- Whether a held Wi-Fi button sends anything more at fifteen seconds.
+- Whether a held On/Off button sends anything more at fifteen seconds.
 - Whether the running-speed byte rises in auto. It should.
 - What status offset 6 is.
 - Whether any of this holds for the 200S, 400S or 600S.
