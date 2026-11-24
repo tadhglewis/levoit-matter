@@ -2,6 +2,7 @@
 
 #include "matter_setup.h"
 #include "purifier.h"
+#include "remote_log.h"
 
 #include <esp_http_server.h>
 #include <esp_log.h>
@@ -16,6 +17,7 @@
 #include <sdkconfig.h>
 
 #include <atomic>
+#include <cstdlib>
 #include <cstring>
 
 static const char *const TAG = "ota";
@@ -225,6 +227,19 @@ esp_err_t handle_set_token(httpd_req_t *request) {
   return ESP_OK;
 }
 
+esp_err_t handle_log(httpd_req_t *request) {
+  if (!authorized(request))
+    return fail(request, HTTPD_401_UNAUTHORIZED, "bad token");
+  char *copy = static_cast<char *>(malloc(remote_log_capacity()));
+  if (copy == nullptr)
+    return fail(request, HTTPD_500_INTERNAL_SERVER_ERROR, "out of memory");
+  size_t len = remote_log_copy(copy, remote_log_capacity());
+  httpd_resp_set_type(request, "text/plain");
+  esp_err_t err = httpd_resp_send(request, copy, static_cast<ssize_t>(len));
+  free(copy);
+  return err;
+}
+
 void health_task(void *) {
   uint32_t waited = 0;
   while (waited < HEALTH_DEADLINE_MS) {
@@ -273,8 +288,13 @@ void ota_server_start() {
   set_token.uri = "/ota/token";
   set_token.method = HTTP_POST;
   set_token.handler = handle_set_token;
+  httpd_uri_t log = {};
+  log.uri = "/log";
+  log.method = HTTP_GET;
+  log.handler = handle_log;
   if (httpd_register_uri_handler(server, &upload) != ESP_OK ||
-      httpd_register_uri_handler(server, &set_token) != ESP_OK) {
+      httpd_register_uri_handler(server, &set_token) != ESP_OK ||
+      httpd_register_uri_handler(server, &log) != ESP_OK) {
     httpd_stop(server);
     server = nullptr;
     ESP_LOGE(TAG, "failed to register the update endpoints");

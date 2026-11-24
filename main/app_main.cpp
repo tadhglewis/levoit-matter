@@ -1,6 +1,7 @@
 #include "matter_setup.h"
 #include "ota.h"
 #include "purifier.h"
+#include "remote_log.h"
 
 #include <esp_err.h>
 #include <esp_heap_caps.h>
@@ -28,6 +29,7 @@ static void log_resources() {
 }
 
 extern "C" void app_main() {
+  remote_log_install();
   esp_err_t err = nvs_flash_init();
   if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
     ESP_ERROR_CHECK(nvs_flash_erase());
