@@ -28,7 +28,7 @@ You need a 3.3 V USB serial adapter. Do not use 5 V.
 Keep the purifier unplugged from the wall the whole time the case is open. The board is powered from the adapter.
 
 1. Unplug the purifier.
-2. Remove the base cover and filter, then the eight screws underneath. Separate the base from the sleeve and unplug the logic board. Photos are in the [tuct/levoit Core 300S guide](https://github.com/tuct/levoit/tree/main/devices/levoit-core300s).
+2. Remove the base cover and filter, then the eight screws underneath. Separate the base from the sleeve and unplug the logic board. Photos are in the [tuct/levoit Core 300S guide](https://github.com/tuct/levoit/tree/main/devices/levoit-core300s). More guides are listed under [Other people's guides](#other-peoples-guides).
 3. Solder or clip wires to the pads next to the ESP32 module:
 
 | Board pad | Adapter |
@@ -233,6 +233,41 @@ Flash over serial, and erase first:
 ```
 
 Other firmwares store Wi-Fi and Matter data differently, and erasing avoids one reading the other's leftovers. You will need to pair again. Moving between firmwares over Wi-Fi is untested. Do not try it on a closed unit.
+
+## Other people's guides
+
+The hardware side of this is the same as flashing ESPHome onto the purifier, and that is well covered. If a step here is unclear, these show it with photos.
+
+### For this purifier
+
+| Guide | Good for |
+|---|---|
+| [tuct/levoit, Core 300S](https://github.com/tuct/levoit/tree/main/devices/levoit-core300s) | The teardown with photos, the eight screws, where the `TXD0`, `RXD0`, `IO0`, `+3V3` and `GND` pads are, and the stock backup. The closest match to these steps. |
+| [tuct/levoit, other devices](https://github.com/tuct/levoit/tree/main/devices) | The same for the Core 200S, 400S and 600S, whose boards differ. Read the one for your model before wiring. |
+| [acvigue/esphome-levoit-air-purifier](https://github.com/acvigue/esphome-levoit-air-purifier) | A second write-up of the same solder points, backup, erase and flash commands. |
+| [mulcmu/esphome-levoit-core300s](https://github.com/mulcmu/esphome-levoit-core300s) | Board photos, a permanent wire harness with a boot button, and the serial protocol notes. |
+
+Two things from those guides worth knowing before you start:
+
+- **On some boards the pads are through-holes**, and wires or pins will hold without solder.
+- **Update the purifier in the VeSync app first.** mulcmu found an older controller firmware misreported PM2.5 and fan speed. Once this firmware is on, VeSync can no longer update the purifier's controller.
+
+### Flashing an ESP32 in general
+
+| Guide | Good for |
+|---|---|
+| [ESPHome: physically connecting to your device](https://esphome.io/guides/physical_device_connection/) | USB serial adapters, which wire goes where, 3.3 V against 5 V, and getting a chip into its bootloader. The best starting point if you have not done this before. |
+| [Espressif: boot mode selection](https://docs.espressif.com/projects/esptool/en/latest/esp32/advanced-topics/boot-mode-selection.html) | Why `IO0` has to be held low at power-on, and what to check when the chip will not connect. |
+| [Espressif: esptool basic commands](https://docs.espressif.com/projects/esptool/en/latest/esp32/esptool/basic-commands.html) | `read-flash`, `write-flash` and `erase-flash`, which `tools/flash.sh` runs for you. |
+| [Espressif: ESP-IDF get started](https://docs.espressif.com/projects/esp-idf/en/v5.5.6/esp32/get-started/index.html) | Installing the toolchain to build from source. |
+
+### What is different here
+
+Those guides flash ESPHome. Follow them for wiring and the backup, then come back, because three things differ:
+
+- **This firmware is not one file.** It is a bootloader, a partition table, per-purifier factory data and the application, each at its own address. `tools/flash.sh` writes all of them. Writing a single image at `0x0`, as the ESPHome guides do, will not work.
+- **Do not use the ESPHome web flasher**, for the same reason.
+- **Flashing over Wi-Fi from stock firmware is not possible.** [nico202/levoit-core300s-ota-wifi-flash](https://github.com/nico202/levoit-core300s-ota-wifi-flash) gets ESPHome onto a Core 300S without opening it, by taking over the stock update. That only replaces the application. This firmware needs its own partition table and factory data written as well, which takes the serial cable.
 
 ## Troubleshooting
 

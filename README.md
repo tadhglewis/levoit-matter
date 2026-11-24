@@ -72,7 +72,7 @@ idf.py build
 
 Then scan `devices/purifier/secrets/qrcode.png` in Apple Home.
 
-**Read [`FLASHING.md`](FLASHING.md) before you open the purifier.** It covers wiring, the backup, and what to check on the first boot.
+**Read [`FLASHING.md`](FLASHING.md) before you open the purifier.** It covers wiring, the backup, and what to check on the first boot. It also links the existing teardown and flashing guides for these purifiers, from [tuct/levoit](https://github.com/tuct/levoit/tree/main/devices), [acvigue](https://github.com/acvigue/esphome-levoit-air-purifier), [mulcmu](https://github.com/mulcmu/esphome-levoit-core300s) and [ESPHome](https://esphome.io/guides/physical_device_connection/).
 
 To flash from a computer without the build tools, `./tools/bundle.sh --with-device` packs the firmware and tools into one zip.
 
