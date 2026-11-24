@@ -64,14 +64,15 @@ Observed in the firmware's log, which records each write and which attribute it 
 | Action in Home | Writes |
 |---|---|
 | Tap Off | FanMode = Off |
-| Tap Manual while off | FanMode = High |
-| Tap Auto while off | FanMode = Auto and FanMode = High, about 40 ms apart, in either order |
+| Tap Manual while off, no On/Off cluster | FanMode = High |
+| Tap Auto while off, no On/Off cluster | FanMode = Auto and FanMode = High, about 40 ms apart, in either order |
+| Tap Auto while off, with an On/Off cluster | On, then FanMode = Auto |
 | Drag the slider | A stream of PercentSetting writes, several a second |
 | Drag the slider to zero | PercentSetting = 0 |
 
 - **Home has no Low, Medium or High control.** The mode menu only ever writes Off, Auto or High.
 - **Home uses FanMode = High to mean "turn on"** when the purifier endpoint has no On/Off cluster. Tapping Auto from off therefore produces two conflicting mode writes, and because the order varies, obeying them in sequence sometimes leaves the purifier in manual.
-- **With an On/Off cluster on the purifier endpoint, Home uses it for power.** Turning the purifier on and off from Home or Siri arrives as On and Off commands, and the FanMode = High writes stop. This is the fix for the conflicting pair above. What Home sends for Auto from off in this arrangement is not yet observed.
+- **With an On/Off cluster on the purifier endpoint, Home uses it for power.** Turning the purifier on and off from Home or Siri arrives as On and Off commands, and the FanMode = High writes stop. This is the fix for the conflicting pair above. Tapping Auto while off then arrives as On followed 100 ms later by FanMode = Auto, with no High.
 - **The cluster must accept On and Toggle as well as Off.** esp-matter's `cluster::on_off::create` only registers Off. With only that, Home's On was refused as an unsupported command and Siri said "no response". Add `command::create_on` and `command::create_toggle`.
 - **The slider sends raw percentages**, not steps. The firmware rounds to the nearest speed and reports the stepped value back, so the slider snaps.
 
