@@ -96,7 +96,7 @@ sequenceDiagram
 
 ## Models
 
-Everything model-specific is one row in `components/levoit/src/levoit_core.cpp`: speed count, airflow, status frame type and byte positions, status request, acknowledgement type. A row can carry a second status layout and request for a newer controller generation. The firmware works out which generation it has.
+Everything model-specific is one row in `components/levoit/src/levoit_core.cpp`: speed count, airflow, status frame type and byte positions, status request, acknowledgement type. A row can carry a second status layout and request for a different controller revision. The firmware works out which one it has.
 
 A new Core model is a row, a Kconfig entry and a captured status frame in the tests. Vital, Sprout and EverestAir use a different frame format and need their own decoder.
 
@@ -172,7 +172,7 @@ A5  type  counter  length  00  checksum  cmd0 cmd1 cmd2  00  payload...
 | `01 00 D1` | `00` or `01` | Child lock |
 | `01 E2 A5` | `00` or `01` | Filter light |
 | `01 29 A1` | six bytes | Wi-Fi light: off, solid, blinking |
-| `01 31 40` | none | Status request, older 300S and 400S |
+| `01 31 40` | none | Status request, 300S and 400S as documented by others |
 | `01 33 40` | none | Status request, 300S controller 1.0.0 |
 | `01 61 40` | none | Status request, 200S |
 
@@ -206,17 +206,21 @@ On a Core 300S whose controller reports version 1.0.0. None of it is in the sour
 | 11 | Air quality, 1 best to 4 | `01` |
 | 12 to 13 | PM2.5, little endian | `01 00` to `07 00` |
 | 14 | Child lock | `00` |
-| 15 | Auto profile | `00` |
-| 16 to 17 | Room size | `00 00` |
-| 18 | Error | `00` |
+| 15 | Auto profile | `00` default, `01` quiet, `02` room size. Follows `01 E6 A5`. |
+| 16 to 17 | Room size, little endian | As sent in `01 E6 A5`. Kept after the profile goes back to default. |
+| 18 | Unknown. The older layout has an error flag here. | `00`, `01`. We saw `01` in normal running, so it is not an error. |
 
-We have not watched offset 9 rise in auto. The reading matches mulcmu's notes on the same field in the older layout.
+We have not watched offset 9 rise in auto. The reading matches mulcmu's notes on the same field in the 18-byte layout.
 
 **Two display bytes.** With the display set to off, any button lights the backlight for three seconds. Offset 7 goes to `64` and back. Offset 8 stays `00`. Read offset 8. We read offset 7 first. Back when the reset counted display changes, three button presses with the display off would have factory-reset the purifier.
 
 **Status request is `01 33 40`.** This controller acknowledges the documented `01 31 40` with an empty payload. The stock firmware names `01 33 40` as `purifier_uart_query_device_status`, and the reply is an acknowledgement carrying the 19-byte status. The firmware tries both until one returns a status.
 
-**Status is pushed once a minute and on every change.** Older captures show it several times a second.
+**Status is pushed once a minute and on every change.** Other people's captures show it several times a second.
+
+**Version 1.0.0 is not "old".** tuct lists controller versions 2.0.7 and 2.0.11 as tested on the 300S, both on the 18-byte status. Ours reports 1.0.0 beside a stock ESP32 image from February 2025, on a UAE-region unit (LAP-C302S-WGC). So this is a different controller line, not an earlier one.
+
+The raw frames behind all of this, both directions, are in [tuct/levoit#140](https://github.com/tuct/levoit/pull/140), with a decoder for that driver. [#141](https://github.com/tuct/levoit/pull/141) adds the status request.
 
 **Button hold, `01 02 D1`.** Sent when the Wi-Fi button is held. Payload `02` when the hold registers, a few seconds in, and `03` on release. Stock firmware logs it as "netcfg is start".
 

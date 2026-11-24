@@ -117,6 +117,8 @@ Back this folder up somewhere that is not this laptop. The setup code and token 
 
 In Apple Home, Add Accessory, scan `secrets/qrcode.png` off the screen or a printout. Accept the uncertified accessory prompt. If the camera will not read it, type the manual code from `setup-codes.csv`.
 
+Home Assistant rejects the purifier's test certificate by default. In the Matter Server add-on's configuration, turn on "Enable test-net DCL" and restart the add-on first. The add-on log says "This device uses a test/development certificate" if you forgot.
+
 Print the QR code and stick it on the purifier. The code never changes, across updates and factory resets alike.
 
 Then set the filter life you noted from VeSync. The firmware cannot know how old your filter is and starts at 100%.
@@ -193,6 +195,8 @@ The bundle holds nothing specific to one purifier, so it is safe to hand to some
 ## Debugging
 
 `./tools/log.sh <ip>` prints the last 6 KB of the purifier's log over Wi-Fi. `./tools/watch.sh <ip>` follows it. Both need the purifier paired. A reboot clears the log.
+
+For a model or controller the firmware does not understand, build with `CONFIG_LEVOIT_LOG_FRAMES=y`. The log then has one hex line for every frame in both directions. Follow it with `./tools/watch.sh <ip> 'link: (rx|tx)'`. Turn it off again afterwards, because it fills the log.
 
 `tools/mcu_sim.py` plays the purifier's controller on a serial port, for testing on a bare ESP32 dev board. Adapter TX to GPIO16, RX to GPIO17, grounds together.
 

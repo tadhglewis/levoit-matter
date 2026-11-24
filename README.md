@@ -96,6 +96,7 @@ Ours:
 
 - Sleep shows as the lowest speed with the Sleep switch on.
 - Filter life starts at 100% whatever the filter's age. Set it with `tools/filter.sh`.
+- The attestation certificate is the SDK's test one. Home Assistant refuses it until you turn on "Enable test-net DCL" in the Matter Server add-on's configuration.
 - Free memory during Bluetooth pairing has dropped to 9.6 KB on the stock chip. It has always paired. It is not much.
 
 `CONFIG_LEVOIT_DISPLAY_SWITCH` and `CONFIG_LEVOIT_CHILD_LOCK_SWITCH` remove those two switches if you want fewer tiles.
@@ -109,7 +110,7 @@ Ours:
 
 ## Contributing
 
-Only the Core 300S has been run. If you flash a 200S, 400S or 600S, open an issue with the output of `./tools/log.sh <ip>` whether it worked or not. The first status frame is in there, and that is what a model fix needs.
+Only the Core 300S has been run. If you flash a 200S, 400S or 600S, open an issue with the output of `./tools/log.sh <ip>` whether it worked or not. The first status frame is in there, and that is what a model fix needs. A build with `CONFIG_LEVOIT_LOG_FRAMES=y` logs every frame, which is better still.
 
 `./components/levoit/host_test/run.sh` has to pass. A change to the protocol code comes with a captured frame in the tests.
 
