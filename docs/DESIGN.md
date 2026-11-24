@@ -135,6 +135,35 @@ A new image stays only if, within two minutes of booting, the network is up, the
 
 Nothing tests the Matter side off the device.
 
+## Resources
+
+Measured on the Core 300S on 2026-11-25, version 0.5.0, ESP-IDF 5.5.6 and esp-matter 1.6.1.
+
+| | Size | Of |
+|---|---|---|
+| Firmware image | 1.48 MB | 1.94 MB app slot, 73% |
+| Static DRAM | 103 KB | 124 KB, 83% |
+| IRAM | 101 KB | 128 KB, 77% |
+
+Running and paired, from the log's once-a-minute report:
+
+| | Value |
+|---|---|
+| Free heap | 111 KB, flat over 40 minutes |
+| Largest free block | 27.6 KB |
+| Lowest free heap since boot | 19.7 KB. 9.6 KB was seen once during Bluetooth pairing on an earlier build. |
+| Free stack: Matter / purifier link / update server / main | 4.1 / 3.6 / 3.6 / 5.7 KB, of 10 / 6 / 6 / 8 KB |
+
+Timings:
+
+| | Time |
+|---|---|
+| First build | About 15 minutes |
+| Build after a code change | 1 to 3 minutes. Changing a build option rebuilds most of the SDK, about 20 minutes. |
+| Update over Wi-Fi | About 12 s to send the 1.48 MB image, then the reboot |
+| From boot to the new image confirmed healthy | About 4 s |
+| From boot to the first purifier status | About 2 s |
+
 ## Purifier protocol
 
 UART, 115200 8N1. On the Core 300S the ESP32 transmits on GPIO17 and receives on GPIO16.
