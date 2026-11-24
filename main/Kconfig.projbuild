@@ -28,19 +28,6 @@ menu "Levoit purifier"
         help
             The Core 200S uses 17. The Core 200S-P (hardware version 2.0) uses 16.
 
-    config LEVOIT_SETUP_PASSCODE
-        int "Matter setup passcode"
-        range 1 99999998
-        default 20202021
-        help
-            20202021 is the public test code. Anyone in Bluetooth range can
-            pair an unpaired purifier that uses it. Pick your own.
-
-    config LEVOIT_SETUP_DISCRIMINATOR
-        int "Matter setup discriminator"
-        range 0 4095
-        default 3840
-
     config LEVOIT_OTA_TOKEN
         string "Token for updates over Wi-Fi"
         default ""

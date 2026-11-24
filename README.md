@@ -46,12 +46,14 @@ Not exposed: timer, auto-mode profiles, room size, the 200S night light, the 600
 You need the case open, a 3.3 V USB serial adapter, and ESP-IDF 5.5.6.
 
 ```bash
-cp sdkconfig.local.example sdkconfig.local   # model, setup code, update token
+cp sdkconfig.local.example sdkconfig.local   # model, update token
 idf.py build
+./tools/factory.sh                           # this purifier's setup code and QR label
+esptool --port /dev/cu.usbserial-XXXX write-flash 0x1A000 factory/fctry.bin
 idf.py -p /dev/cu.usbserial-XXXX flash monitor
 ```
 
-The log prints a QR code link. Scan it in Apple Home.
+Scan `factory/qrcode.png` in Apple Home.
 
 That is the short version. **Read [`FLASHING.md`](FLASHING.md) before you open the purifier.** It covers the toolchain, wiring, backing up the stock firmware, pairing, updates and what to check on the first boot.
 
@@ -62,10 +64,14 @@ Set in `sdkconfig.local` before the first build, or in `idf.py menuconfig` under
 | Setting | Default | Notes |
 |---|---|---|
 | `CONFIG_LEVOIT_MODEL_CORE300S=y` | Core 300S | Or `CORE200S`, `CORE400S`, `CORE600S`. |
-| `CONFIG_LEVOIT_SETUP_PASSCODE` | 20202021 | The default is the public test code. Pick your own. |
-| `CONFIG_LEVOIT_SETUP_DISCRIMINATOR` | 3840 | 0 to 4095. |
 | `CONFIG_LEVOIT_OTA_TOKEN` | empty | Empty disables updates over Wi-Fi. |
 | `CONFIG_LEVOIT_UART_TX_GPIO`, `_RX_GPIO` | Per model | Only change for a board revision with swapped pins. |
+
+## Setup code
+
+Each purifier gets its own random setup code, the way retail devices do. `tools/factory.sh` generates it, writes it to a small factory partition image, and produces the QR label. The purifier stores only a one-way verifier, so the code is not in the firmware and cannot be read back off the chip. Firmware updates and factory resets leave it alone.
+
+A purifier flashed without factory data falls back to the public Matter test code and says so in its log. Fine on a bench, not in a home.
 
 ## How it works
 

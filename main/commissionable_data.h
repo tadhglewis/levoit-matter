@@ -1,3 +1,3 @@
 #pragma once
 
-void commissionable_data_install();
+bool commissionable_data_install();

@@ -52,7 +52,7 @@ flowchart LR
 | `main/purifier` | The coordinator. Owns purifier state, turns requests into commands, tracks filter use, detects the reset gesture, drives the LEDs. |
 | `main/matter_setup` | Builds the endpoints, turns controller writes into requests, pushes state into the clusters. |
 | `main/ota` | The update endpoint and the health check that decides whether a new image is kept. |
-| `main/commissionable_data` | Supplies the setup code from the build settings. |
+| `main/commissionable_data` | Supplies the setup code verifier from the factory partition. |
 
 Two tasks do the work. The UART task owns the serial port and all purifier state. The Matter task owns every cluster object. They talk through one queue in each direction, so neither touches the other's data.
 
@@ -99,7 +99,9 @@ The purifier does not report filter life. The firmware counts airflow: each minu
 
 ## Pairing and reset
 
-- The setup code is fixed at build time, so the QR label survives reflashing.
+- Each purifier has its own random setup code, made by `tools/factory.sh` with Espressif's manufacturing tool. The purifier holds only the verifier, salt, iteration count and discriminator, in a factory partition that updates and factory resets never touch. The code itself exists only on the label.
+- Without factory data the firmware falls back to the public test code and logs a warning.
+- The attestation certificate is still the SDK's test one, so Apple Home shows the uncertified prompt. A real one needs a vendor ID.
 - Bluetooth is only used for pairing and is shut down afterwards to free memory. It cannot be restarted without a reboot.
 - That is why removing the purifier from its last controller does a full factory reset: it is the only way back to pairing mode.
 - The reset gesture is six uncommanded display changes within fifteen seconds. Changes the firmware itself asked for do not count.

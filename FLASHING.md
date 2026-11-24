@@ -85,8 +85,6 @@ Edit `sdkconfig.local`:
 | Setting | Rule |
 |---|---|
 | `CONFIG_LEVOIT_MODEL_CORE300S=y` | Or `CORE200S`, `CORE400S`, `CORE600S`. |
-| `CONFIG_LEVOIT_SETUP_PASSCODE` | 1 to 99999998. Not 11111111, 12345678 or similar. Pick your own. |
-| `CONFIG_LEVOIT_SETUP_DISCRIMINATOR` | 0 to 4095 |
 | `CONFIG_LEVOIT_OTA_TOKEN` | Any long random string. Empty disables updates over Wi-Fi. |
 
 Build and test:
@@ -105,15 +103,26 @@ These are ordinary Kconfig options. `sdkconfig.local` only seeds them, so a chan
 
 ## 5. Flash
 
-With the chip in its bootloader:
+First make this purifier's setup code. Do it once per purifier:
 
 ```bash
+./tools/factory.sh
+```
+
+It writes three files to `factory/`: `fctry.bin` for the chip, `qrcode.png` for the label, and `codes.csv` with the same codes as text. **Back the folder up.** It is the only copy of the setup code, and a full flash erase needs `fctry.bin` again.
+
+With the chip in its bootloader, write the factory data, then the firmware:
+
+```bash
+.venv/bin/esptool --port $PORT write-flash 0x1A000 factory/fctry.bin
 idf -p $PORT flash monitor
 ```
 
+The factory data only needs writing once. Later firmware flashes and updates over Wi-Fi do not touch it. `erase-flash` does.
+
 Exit the monitor with `Ctrl-]`.
 
-To flash without the build tools, the four files and offsets are:
+To flash without the build tools, the files and offsets are:
 
 ```bash
 cd build
@@ -121,22 +130,17 @@ cd build
   0x1000 bootloader/bootloader.bin \
   0x8000 partition_table/partition-table.bin \
   0x9000 ota_data_initial.bin \
+  0x1A000 ../factory/fctry.bin \
   0x20000 levoit_matter.bin
 ```
 
 ## 6. Pair
 
-The log prints:
+In Apple Home choose Add Accessory, scan `factory/qrcode.png`, and accept the uncertified accessory prompt. The phone sends Wi-Fi credentials over Bluetooth. If the camera will not read it, enter the manual code from `factory/codes.csv`.
 
-```
-[pairing] QR code: MT:...
-[pairing] QR image: https://project-chip.github.io/connectedhomeip/qrcode.html?data=MT:...
-[pairing] manual code: ...........
-```
+The log should say `setup code from the factory partition`. If it says `no factory data; using the public test setup code`, the factory data was not written, and the purifier is pairable by anyone in Bluetooth range using the public code it then prints. Write `fctry.bin` and reboot.
 
-Open the image link, then in Apple Home choose Add Accessory, scan it, and accept the uncertified accessory prompt. The phone sends Wi-Fi credentials over Bluetooth.
-
-The code comes from your build settings, so it stays the same across reflashes and factory resets. Print it and stick it on the purifier.
+The code stays the same across reflashes, updates and factory resets. Print the QR image and stick it on the purifier.
 
 ## 7. Update over Wi-Fi
 
@@ -154,7 +158,7 @@ Tap the Display Off button six times within fifteen seconds, about one tap a sec
 
 Removing the purifier from the last controller does the same thing.
 
-If that fails, erase over serial and flash again:
+If that fails, erase over serial and flash again, including `factory/fctry.bin`:
 
 ```bash
 .venv/bin/esptool --port $PORT erase-flash

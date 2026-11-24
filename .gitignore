@@ -1,4 +1,5 @@
 .venv/
+.venv-mfg/
 build/
 managed_components/
 sdkconfig
@@ -7,4 +8,5 @@ sdkconfig.local
 dependencies.lock
 components/levoit/host_test/build/
 build.log
+factory/
 __pycache__/

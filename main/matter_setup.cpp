@@ -335,7 +335,12 @@ uint16_t create_switch_endpoint(esp_matter::node_t *node) {
   return endpoint == nullptr ? 0 : esp_matter::endpoint::get_id(endpoint);
 }
 
-void print_onboarding_codes() {
+void print_onboarding_codes(bool factory) {
+  if (factory) {
+    printf("[pairing] setup code is on the label made by tools/factory.sh\n");
+    fflush(stdout);
+    return;
+  }
   static char buffer[chip::QRCodeBasicSetupPayloadGenerator::kMaxQRCodeBase38RepresentationLength + 1];
   static char url[256];
   chip::RendezvousInformationFlags flags(chip::RendezvousInformationFlag::kBLE);
@@ -356,7 +361,7 @@ void print_onboarding_codes() {
 } // namespace
 
 esp_err_t matter_setup_start() {
-  commissionable_data_install();
+  bool factory_setup_code = commissionable_data_install();
 
   esp_matter::node::config_t node_config;
   esp_matter::node_t *node =
@@ -402,7 +407,7 @@ esp_err_t matter_setup_start() {
   if (scheduled != CHIP_NO_ERROR)
     ESP_LOGW(TAG, "post-start work not scheduled: %" CHIP_ERROR_FORMAT, scheduled.Format());
 
-  print_onboarding_codes();
+  print_onboarding_codes(factory_setup_code);
   return ESP_OK;
 }
 
