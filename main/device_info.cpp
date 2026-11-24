@@ -18,7 +18,7 @@ using chip::DeviceLayer::ConfigurationManagerImpl;
 using chip::DeviceLayer::Internal::ESP32Config;
 using chip::DeviceLayer::Internal::GenericDeviceInstanceInfoProvider;
 
-constexpr const char *VENDOR_NAME = "github.com/tadhglewis";
+constexpr const char *VENDOR_NAME = "tadhglewis.dev";
 constexpr const char *PRODUCT_URL = "https://github.com/tadhglewis/levoit-matter";
 
 CHIP_ERROR copy(const char *text, char *buf, size_t size) {
