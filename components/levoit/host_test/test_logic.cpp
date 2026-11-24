@@ -189,6 +189,13 @@ static void test_models() {
   CHECK(state.air_quality == 1 && state.pm25 == 1 && !state.child_lock);
   CHECK(state.mcu_major == 1 && state.mcu_minor == 0 && state.mcu_patch == 0);
   CHECK(state.running_level_valid && state.running_level == 0);
+  CHECK(make_view(CORE_300S, state, 3, 80).display);
+  PurifierState dark = state;
+  dark.mode = Mode::SLEEP;
+  CHECK(make_view(CORE_300S, dark, 3, 80).sleep && !make_view(CORE_300S, dark, 3, 80).display);
+  dark = state;
+  dark.power = false;
+  CHECK(!make_view(CORE_300S, dark, 3, 80).display);
   MatterView idle = make_view(CORE_300S, state, 3, 80);
   CHECK(idle.fan_mode == FanModeView::AUTO && idle.current_valid && idle.percent_current == 33);
   FilterLife idle_filter(CORE_300S);

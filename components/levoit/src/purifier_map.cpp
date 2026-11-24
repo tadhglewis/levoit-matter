@@ -79,7 +79,7 @@ MatterView make_view(const ModelSpec &model, const PurifierState &state,
   view.filter_percent = filter_percent;
   view.change_indication = change_indication_from_percent(filter_percent);
   view.sleep = state.power && state.mode == Mode::SLEEP;
-  view.display = state.display_on;
+  view.display = state.display_on && state.power && state.mode != Mode::SLEEP;
   view.child_lock = state.child_lock;
   return view;
 }
