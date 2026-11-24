@@ -11,3 +11,4 @@ build.log
 devices/
 __pycache__/
 dist/
+.DS_Store
