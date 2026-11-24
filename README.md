@@ -21,7 +21,7 @@ It replaces the firmware on the purifier's own ESP32. Nothing extra goes inside.
 | Feature | In Apple Home |
 |---|---|
 | Power | Tile, Siri. Turning on resumes the last mode and speed. |
-| Fan speed | Slider. Snaps to the purifier's speeds. |
+| Fan speed | Slider. Rounds to the nearest of the purifier's speeds. |
 | Auto mode | Mode menu. Shows the speed the fan is actually running at. |
 | Sleep mode | Switch |
 | Display on and off | Switch |
@@ -99,6 +99,7 @@ These are Apple Home's, and the firmware cannot work around them. Details in [`d
 - No filter reset in Home. Use the Sleep button.
 - Home shows an "uncertified accessory" prompt once, and always offers "Matter Accessory" as the name.
 - No firmware updates through Home.
+- After you drag the slider, Home keeps showing where you left it until the app is reopened, even though the purifier has rounded to a real speed.
 
 And the firmware's own:
 

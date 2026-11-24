@@ -162,17 +162,19 @@ void apply_view(const MatterView &view) {
     case levoit::FanModeView::AUTO:
       fan->SetFanMode(FanControl::FanModeEnum::kAuto);
       break;
-    default:
+    default: {
+      auto before = fan->GetPercentSetting();
       fan->SetPercentSetting(
           chip::app::DataModel::MakeNullable<chip::Percent>(view.percent_setting));
       fan->SetSpeedSetting(
           chip::app::DataModel::MakeNullable<uint8_t>(view.speed_current));
+      auto after = fan->GetPercentSetting();
+      if (before.IsNull() || before.Value() != view.percent_setting)
+        ESP_LOGI(TAG, "fan percent corrected %d -> %d",
+                 before.IsNull() ? -1 : before.Value(),
+                 after.IsNull() ? -1 : after.Value());
       break;
     }
-    static uint8_t reported_percent = 0xFF;
-    if (view.percent_setting != reported_percent) {
-      reported_percent = view.percent_setting;
-      ESP_LOGI(TAG, "fan report percent=%u", view.percent_setting);
     }
     if (view.current_valid) {
       fan->SetPercentCurrent(view.percent_current);
