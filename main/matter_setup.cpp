@@ -314,6 +314,8 @@ bool create_purifier_endpoint(esp_matter::node_t *node) {
   const levoit::ModelSpec &model = levoit::purifier_model();
 
   esp_matter::endpoint::air_purifier::config_t config;
+  config.identify.identify_type =
+      chip::to_underlying(Identify::IdentifyTypeEnum::kVisibleIndicator);
   config.fan_control.fan_mode_sequence = static_cast<uint8_t>(
       model.has_auto ? FanControl::FanModeSequenceEnum::kOffLowMedHighAuto
                      : FanControl::FanModeSequenceEnum::kOffLowMedHigh);
@@ -362,6 +364,8 @@ bool create_air_quality_endpoint(esp_matter::node_t *node) {
   namespace cluster = esp_matter::cluster;
 
   esp_matter::endpoint::air_quality_sensor::config_t config;
+  config.identify.identify_type =
+      chip::to_underlying(Identify::IdentifyTypeEnum::kVisibleIndicator);
   esp_matter::endpoint_t *endpoint =
       esp_matter::endpoint::air_quality_sensor::create(
           node, &config, esp_matter::ENDPOINT_FLAG_NONE, nullptr);
