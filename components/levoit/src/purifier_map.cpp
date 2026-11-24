@@ -29,7 +29,7 @@ uint8_t percent_to_level(uint8_t percent, uint8_t level_max) {
     return 0;
   if (percent > 100)
     percent = 100;
-  uint8_t level = static_cast<uint8_t>((percent * level_max + 50) / 100);
+  uint8_t level = static_cast<uint8_t>((percent * level_max + 99) / 100);
   return level < 1 ? 1 : level > level_max ? level_max : level;
 }
 
