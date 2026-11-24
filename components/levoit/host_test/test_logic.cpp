@@ -206,7 +206,7 @@ static void test_models() {
   CHECK(level3.speed_current == 3);
   MatterView level4 = make_view(CORE_400S, state_of(true, Mode::MANUAL, 4), 4, 80);
   CHECK(level4.fan_mode == FanModeView::HIGH && level4.percent_setting == 100);
-  CHECK(percent_to_level(75, 4) == 3 && percent_to_level(76, 4) == 4);
+  CHECK(percent_to_level(75, 4) == 3 && percent_to_level(87, 4) == 3 && percent_to_level(88, 4) == 4);
   CHECK(plan_fan_level(CORE_400S, state_of(true, Mode::MANUAL, 1), 4).commands[0].payload[2] == 4);
 
   FilterLife filter(CORE_600S);
@@ -234,9 +234,10 @@ static void test_mapping() {
   CHECK(level_to_percent(1, 3) == 33 && level_to_percent(2, 3) == 66 && level_to_percent(3, 3) == 100);
   CHECK(level_to_percent(3, 4) == 75);
   CHECK(percent_to_level(0, 3) == 0);
-  CHECK(percent_to_level(1, 3) == 1 && percent_to_level(33, 3) == 1);
-  CHECK(percent_to_level(34, 3) == 2 && percent_to_level(66, 3) == 2);
-  CHECK(percent_to_level(67, 3) == 3 && percent_to_level(100, 3) == 3);
+  CHECK(percent_to_level(1, 3) == 1 && percent_to_level(5, 3) == 1 && percent_to_level(33, 3) == 1);
+  CHECK(percent_to_level(39, 3) == 1 && percent_to_level(49, 3) == 1 && percent_to_level(50, 3) == 2);
+  CHECK(percent_to_level(66, 3) == 2 && percent_to_level(83, 3) == 2);
+  CHECK(percent_to_level(84, 3) == 3 && percent_to_level(100, 3) == 3);
   for (uint8_t level = 1; level <= 3; level++)
     CHECK(percent_to_level(level_to_percent(level, 3), 3) == level);
   CHECK(air_quality_from_level(1) == 1 && air_quality_from_level(4) == 4);

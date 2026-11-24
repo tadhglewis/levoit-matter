@@ -12,6 +12,7 @@ enum class RequestKind : uint8_t {
   FAN_OFF,
   FAN_AUTO,
   FAN_LEVEL,
+  FAN_RESUME,
   SLEEP,
   DISPLAY,
   CHILD_LOCK,

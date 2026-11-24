@@ -49,6 +49,9 @@ uint16_t display_endpoint = 0;
 uint16_t child_lock_endpoint = 0;
 
 bool pushing = false;
+constexpr uint32_t NO_ATTRIBUTE = 0xFFFFFFFF;
+uint32_t fan_written_attribute = NO_ATTRIBUTE;
+uint8_t fan_written_value = 0;
 std::atomic<bool> network_ready{false};
 
 void post(RequestKind kind, uint8_t value = 0) {
@@ -72,6 +75,14 @@ public:
     if (pushing || !levoit::purifier_ready())
       return;
     uint8_t level_max = levoit::purifier_model().level_max;
+    uint32_t written = fan_written_attribute;
+    uint8_t written_value = fan_written_value;
+    fan_written_attribute = NO_ATTRIBUTE;
+    ESP_LOGI(TAG, "fan write attr=%04x value=%u -> mode=%u percent=%d speed=%d",
+             static_cast<unsigned>(written & 0xFFFF), written_value,
+             static_cast<unsigned>(state.mode),
+             state.percentSetting.IsNull() ? -1 : state.percentSetting.Value(),
+             state.speedSetting.IsNull() ? -1 : state.speedSetting.Value());
     switch (state.mode) {
     case FanControl::FanModeEnum::kOff:
       post(RequestKind::FAN_OFF);
@@ -83,20 +94,31 @@ public:
     default:
       break;
     }
-    uint8_t level = 0;
-    if (!state.speedSetting.IsNull() && state.speedSetting.Value() >= 1 &&
-        state.speedSetting.Value() <= level_max) {
-      level = state.speedSetting.Value();
-    } else if (!state.percentSetting.IsNull() && state.percentSetting.Value() > 0) {
-      level = levoit::percent_to_level(state.percentSetting.Value(), level_max);
-    } else if (state.mode == FanControl::FanModeEnum::kLow) {
-      level = 1;
-    } else if (state.mode == FanControl::FanModeEnum::kMedium) {
-      level = static_cast<uint8_t>((level_max + 1) / 2);
-    } else {
-      level = level_max;
+    if (written == FanControl::Attributes::FanMode::Id) {
+      if (state.mode == FanControl::FanModeEnum::kLow)
+        post(RequestKind::FAN_LEVEL, 1);
+      else if (state.mode == FanControl::FanModeEnum::kMedium)
+        post(RequestKind::FAN_LEVEL, static_cast<uint8_t>((level_max + 1) / 2));
+      else
+        post(RequestKind::FAN_RESUME,
+             state.mode == FanControl::FanModeEnum::kHigh ? 1 : 0);
+      return;
     }
-    post(RequestKind::FAN_LEVEL, level);
+    if (written == FanControl::Attributes::SpeedSetting::Id && written_value >= 1 &&
+        written_value <= level_max) {
+      post(RequestKind::FAN_LEVEL, written_value);
+      return;
+    }
+    uint8_t percent = written == FanControl::Attributes::PercentSetting::Id
+                          ? written_value
+                          : state.percentSetting.IsNull() ? 0 : state.percentSetting.Value();
+    if (percent > 0)
+      post(RequestKind::FAN_LEVEL, levoit::percent_to_level(percent, level_max));
+    else if (!state.speedSetting.IsNull() && state.speedSetting.Value() >= 1 &&
+             state.speedSetting.Value() <= level_max)
+      post(RequestKind::FAN_LEVEL, state.speedSetting.Value());
+    else
+      post(RequestKind::FAN_RESUME, 0);
   }
 };
 
@@ -192,6 +214,12 @@ esp_err_t attribute_callback(esp_matter::attribute::callback_type_t type,
                              uint16_t endpoint_id, uint32_t cluster_id,
                              uint32_t attribute_id, esp_matter_attr_val_t *value,
                              void *) {
+  if (type == esp_matter::attribute::PRE_UPDATE && !pushing && value != nullptr &&
+      cluster_id == FanControl::Id && endpoint_id == purifier_endpoint) {
+    fan_written_attribute = attribute_id;
+    fan_written_value = value->val.u8;
+    return ESP_OK;
+  }
   if (type != esp_matter::attribute::PRE_UPDATE || pushing ||
       cluster_id != OnOff::Id || attribute_id != OnOff::Attributes::OnOff::Id ||
       value == nullptr)

@@ -25,7 +25,6 @@ constexpr const char *NVS_RUNTIME = "runtime_min";
 constexpr uint32_t SAVE_EVERY_MINUTES = 30;
 constexpr uint32_t REPUBLISH_WINDOW_MS = 3000;
 constexpr uint32_t DISPLAY_COMMAND_WINDOW_MS = 3000;
-constexpr uint32_t WIFI_LED_SOLID_MS = 30000;
 
 #if CONFIG_LEVOIT_MODEL_CORE200S
 const ModelSpec &model = CORE_200S;
@@ -144,6 +143,13 @@ void handle_request(const Request &request, uint32_t now_ms) {
   case RequestKind::FAN_LEVEL:
     apply_plan(plan_fan_level(model, current, request.value), now_ms);
     break;
+  case RequestKind::FAN_RESUME: {
+    bool manual_on = current.power && current.mode == Mode::MANUAL;
+    uint8_t level = manual_on ? (request.value != 0 ? model.level_max : current.level)
+                              : last_level;
+    apply_plan(plan_fan_level(model, current, level != 0 ? level : 1), now_ms);
+    break;
+  }
   case RequestKind::SLEEP:
     apply_plan(plan_sleep(current, request.value != 0), now_ms);
     break;
@@ -217,10 +223,6 @@ void on_poll(uint32_t now_ms) {
     republish_active = false;
     publish(now_ms, true);
   }
-
-  if (wifi_led == WifiLed::SOLID &&
-      now_ms - wifi_led_since_ms >= WIFI_LED_SOLID_MS)
-    set_wifi_led(WifiLed::OFF, now_ms);
 }
 
 } // namespace
