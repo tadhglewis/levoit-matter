@@ -75,7 +75,7 @@ Observed in the firmware's log, which records each write and which attribute it 
 - **With an On/Off cluster on the purifier endpoint, Home uses it for power.** Turning the purifier on and off from Home or Siri arrives as On and Off commands, and the FanMode = High writes stop. This is the fix for the conflicting pair above. Tapping Auto while off then arrives as On followed 100 ms later by FanMode = Auto, with no High.
 - **The cluster must accept On and Toggle as well as Off.** esp-matter's `cluster::on_off::create` only registers Off. With only that, Home's On was refused as an unsupported command and Siri said "no response". Add `command::create_on` and `command::create_toggle`.
 - **The slider sends raw percentages**, not steps. The firmware rounds to the nearest speed and reports the stepped value back.
-- **Home does not move a slider you have just set.** After a drag to 10% on a three-speed purifier, the purifier reports 33% within a second, but the open screen keeps showing 10%. Reopening the Home app shows 33%. The tile and the purifier are correct throughout.
+- **Home redraws the slider when the device's answer matches Matter's rounding.** Matter maps a percentage to a speed by rounding up. With that rounding, a drag from off to 8% was redrawn at 33% and 51% at 66%. When the firmware briefly rounded to the nearest speed instead, a drag to 44% went to speed 1 and reported 33%, and Home left the slider at 44% until the app was reopened. Follow the standard's rounding.
 
 ## Air quality
 

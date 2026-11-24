@@ -99,7 +99,6 @@ These are Apple Home's, and the firmware cannot work around them. Details in [`d
 - No filter reset in Home. Use the Sleep button.
 - Home shows an "uncertified accessory" prompt once, and always offers "Matter Accessory" as the name.
 - No firmware updates through Home.
-- After you drag the slider, Home keeps showing where you left it until the app is reopened, even though the purifier has rounded to a real speed.
 
 And the firmware's own:
 
