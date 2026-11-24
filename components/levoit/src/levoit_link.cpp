@@ -93,7 +93,7 @@ void write_ack(const Frame &received) {
 
 void deliver_status(const Frame &frame, uint32_t now) {
   PurifierState state;
-  if (!decode_status(*model, frame.payload, frame.payload_len, state)) {
+  if (!decode_status(*model, frame.command, frame.payload, frame.payload_len, state)) {
     ESP_LOGW(TAG, "status frame rejected, %u bytes",
              static_cast<unsigned>(frame.payload_len));
     return;
@@ -108,6 +108,20 @@ void handle_frame(const Frame &frame) {
   uint32_t now = now_ms();
   last_frame_ms.store(now);
   frame_seen.store(true);
+
+  static uint8_t empty_request_acks = 0;
+  bool empty_request_ack = frame.type == TYPE_ACK && frame.payload_len == 0 &&
+                           frame.command == model->status_request;
+  if (frame.payload_len > 0 || frame.type != TYPE_ACK ||
+      (empty_request_ack && empty_request_acks < 3)) {
+    if (empty_request_ack)
+      empty_request_acks++;
+    ESP_LOGI(TAG, "rx type=%02X counter=%02X command=%06" PRIX32 " trailer=%02X len=%u",
+             frame.type, frame.counter, frame.command, frame.trailer,
+             static_cast<unsigned>(frame.payload_len));
+    if (frame.payload_len > 0)
+      ESP_LOG_BUFFER_HEX(TAG, frame.payload, frame.payload_len);
+  }
 
   if (frame.type == TYPE_ACK) {
     if (awaiting_ack && frame.command == queue[queue_head].command)

@@ -131,7 +131,7 @@ static bool decode_capture(const ModelSpec &model, const uint8_t *raw,
     return false;
   if (type == TYPE_ACK && frame.command != model.status_request)
     return false;
-  return decode_status(model, frame.payload, frame.payload_len, state);
+  return decode_status(model, frame.command, frame.payload, frame.payload_len, state);
 }
 
 static void test_models() {
@@ -180,6 +180,16 @@ static void test_models() {
   CHECK(state.auto_profile == 2 && state.mcu_major == 2 && state.mcu_patch == 1);
   CHECK(!decode_status(CORE_600S, status_600s + HEADER_LEN, 21, state));
   CHECK(!is_status_command(CORE_600S, 0x013040));
+
+  const uint8_t v2_300s[] = {0x00, 0x00, 0x01, 0x01, 0x02, 0x01, 0x00, 0x64, 0x01, 0x00,
+                             0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  CHECK(is_status_command(CORE_300S, 0x013240) && !is_status_command(CORE_400S, 0x013240));
+  CHECK(decode_status(CORE_300S, 0x013240, v2_300s, sizeof(v2_300s), state));
+  CHECK(state.power && state.mode == Mode::AUTO && state.level == 1 && state.display_on);
+  CHECK(state.air_quality == 1 && state.pm25 == 1 && !state.child_lock);
+  CHECK(state.mcu_major == 1 && state.mcu_minor == 0 && state.mcu_patch == 0);
+  CHECK(!decode_status(CORE_300S, 0x013240, v2_300s, 18, state));
+  CHECK(decode_status(CORE_300S, 0x013040, SAMPLE_STATUS + HEADER_LEN, 18, state) && state.pm25 == 3);
 
   uint8_t payload_400s[18];
   memcpy(payload_400s, SAMPLE_STATUS + HEADER_LEN, 18);

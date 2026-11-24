@@ -9,21 +9,25 @@ constexpr uint8_t DISPLAY_FULL = 0x64;
 const ModelSpec CORE_200S = {
     "Core 200S", 3,    167, 6, false, 0x016040, 0,
     0x016140,    true, {12, 5, 6, 7, NO_FIELD, NO_FIELD, 10, NO_FIELD, NO_FIELD},
+    0,           {},
 };
 
 const ModelSpec CORE_300S = {
     "Core 300S", 3,     214, 6, true, 0x013040, 0x01B040,
     0x013140,    false, {18, 5, 6, NO_FIELD, 10, 11, 13, 14, 17},
+    0x013240,    {19, 5, 7, NO_FIELD, 11, 12, 14, 15, 18},
 };
 
 const ModelSpec CORE_400S = {
     "Core 400S", 4,     442, 6, true, 0x013040, 0x01B040,
     0x013140,    false, {18, 5, 7, NO_FIELD, 10, 11, 13, 14, 17},
+    0,           {},
 };
 
 const ModelSpec CORE_600S = {
     "Core 600S", 4,    641, 6, true, 0x014041, 0,
     0x014141,    true, {22, 5, 8, NO_FIELD, 11, 12, 14, 15, NO_FIELD},
+    0,           {},
 };
 
 namespace {
@@ -45,12 +49,32 @@ Command make_command(uint32_t command, const uint8_t *payload, uint8_t len) {
 
 bool is_status_command(const ModelSpec &model, uint32_t command) {
   return command == model.status_command ||
-         (model.status_command_alt != 0 && command == model.status_command_alt);
+         (model.status_command_alt != 0 && command == model.status_command_alt) ||
+         (model.status_command_v2 != 0 && command == model.status_command_v2);
 }
+
+namespace {
+
+bool decode_with(const ModelSpec &model, const StatusLayout &layout,
+                 const uint8_t *payload, size_t len, PurifierState &state);
+
+} // namespace
 
 bool decode_status(const ModelSpec &model, const uint8_t *payload, size_t len,
                    PurifierState &state) {
-  const StatusLayout &layout = model.layout;
+  return decode_with(model, model.layout, payload, len, state);
+}
+
+bool decode_status(const ModelSpec &model, uint32_t command,
+                   const uint8_t *payload, size_t len, PurifierState &state) {
+  bool v2 = model.status_command_v2 != 0 && command == model.status_command_v2;
+  return decode_with(model, v2 ? model.layout_v2 : model.layout, payload, len, state);
+}
+
+namespace {
+
+bool decode_with(const ModelSpec &model, const StatusLayout &layout,
+                 const uint8_t *payload, size_t len, PurifierState &state) {
   if (len < layout.min_payload_len || len < 5)
     return false;
   if (payload[4] > static_cast<uint8_t>(Mode::AUTO))
@@ -82,6 +106,8 @@ bool decode_status(const ModelSpec &model, const uint8_t *payload, size_t len,
   state.error = read_u8(payload, layout.error);
   return true;
 }
+
+} // namespace
 
 Command command_status_request(const ModelSpec &model) {
   return make_command(model.status_request, nullptr, 0);

@@ -10,7 +10,7 @@
 namespace {
 
 constexpr size_t CAPACITY = 6144;
-constexpr size_t LINE_MAX = 192;
+constexpr size_t LINE_BUFFER = 192;
 
 char ring[CAPACITY];
 size_t head = 0;
@@ -30,7 +30,7 @@ void append(const char *text, size_t len) {
 }
 
 int capture(const char *format, va_list args) {
-  char line[LINE_MAX];
+  char line[LINE_BUFFER];
   va_list copy;
   va_copy(copy, args);
   int len = vsnprintf(line, sizeof(line), format, copy);

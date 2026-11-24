@@ -33,6 +33,8 @@ struct ModelSpec {
   uint32_t status_request;
   bool status_ack_alt;
   StatusLayout layout;
+  uint32_t status_command_v2;
+  StatusLayout layout_v2;
 };
 
 extern const ModelSpec CORE_200S;
@@ -71,6 +73,8 @@ constexpr uint32_t COMMAND_FILTER_RESET = 0x01E4A5;
 bool is_status_command(const ModelSpec &model, uint32_t command);
 bool decode_status(const ModelSpec &model, const uint8_t *payload, size_t len,
                    PurifierState &state);
+bool decode_status(const ModelSpec &model, uint32_t command,
+                   const uint8_t *payload, size_t len, PurifierState &state);
 
 Command command_status_request(const ModelSpec &model);
 Command command_power(bool on);
