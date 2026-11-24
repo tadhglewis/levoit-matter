@@ -113,8 +113,24 @@ public:
     uint8_t percent = written == FanControl::Attributes::PercentSetting::Id
                           ? written_value
                           : state.percentSetting.IsNull() ? 0 : state.percentSetting.Value();
-    if (percent > 0)
-      post(RequestKind::FAN_LEVEL, levoit::percent_to_level(percent, level_max));
+    if (percent > 0) {
+      uint8_t level = levoit::percent_to_level(percent, level_max);
+      post(RequestKind::FAN_LEVEL, level);
+      uint8_t stepped = levoit::level_to_percent(level, level_max);
+      if (stepped != percent)
+        chip::DeviceLayer::PlatformMgr().ScheduleWork(
+            [](intptr_t value) {
+              auto *fan = FanControl::FindClusterOnEndpoint(purifier_endpoint);
+              if (fan == nullptr)
+                return;
+              pushing = true;
+              fan->SetPercentSetting(chip::app::DataModel::MakeNullable<chip::Percent>(
+                  static_cast<chip::Percent>(value)));
+              pushing = false;
+              ESP_LOGI(TAG, "fan percent stepped to %d", static_cast<int>(value));
+            },
+            stepped);
+    }
     else if (!state.speedSetting.IsNull() && state.speedSetting.Value() >= 1 &&
              state.speedSetting.Value() <= level_max)
       post(RequestKind::FAN_LEVEL, state.speedSetting.Value());
