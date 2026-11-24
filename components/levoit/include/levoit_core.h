@@ -36,6 +36,7 @@ struct ModelSpec {
   StatusLayout layout;
   uint32_t status_command_v2;
   StatusLayout layout_v2;
+  uint32_t status_request_v2;
 };
 
 extern const ModelSpec CORE_200S;
@@ -80,7 +81,8 @@ bool decode_status(const ModelSpec &model, const uint8_t *payload, size_t len,
 bool decode_status(const ModelSpec &model, uint32_t command,
                    const uint8_t *payload, size_t len, PurifierState &state);
 
-Command command_status_request(const ModelSpec &model);
+Command command_status_request(const ModelSpec &model, bool v2 = false);
+uint32_t status_command_for_reply(const ModelSpec &model, uint32_t request);
 Command command_power(bool on);
 Command command_level(uint8_t level);
 Command command_mode(Mode mode);

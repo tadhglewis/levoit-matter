@@ -1,9 +1,8 @@
 #!/bin/sh
 set -e
 usage() {
-  echo "usage: $0 [-d device] [--with-device]" >&2
+  echo "usage: $0" >&2
   echo "Packs the built firmware and the tools into dist/, for flashing from a computer without the build tools." >&2
-  echo "--with-device also packs that device's fctry.bin. Its secrets folder is never packed." >&2
   exit 1
 }
 . "$(dirname "$0")/common.sh"
@@ -21,10 +20,5 @@ cp "$ROOT/tools/common.sh" "$ROOT/tools/factory.sh" "$ROOT/tools/flash.sh" \
   "$ROOT/tools/monitor.sh" "$ROOT/tools/ota.sh" "$ROOT/tools/log.sh" "$ROOT/tools/watch.sh" "$ROOT/tools/filter.sh" "$OUT/tools/"
 cp "$ROOT/FLASHING.md" "$ROOT/LICENSE" "$OUT/"
 (cd "$OUT" && shasum -a 256 firmware/*.bin > SHA256SUMS)
-if [ "$1" = "--with-device" ]; then
-  [ -e "$DEVICE_DIR/fctry.bin" ] || { echo "no factory data for '$DEVICE'" >&2; exit 1; }
-  mkdir -p "$OUT/devices/$DEVICE"
-  cp "$DEVICE_DIR/fctry.bin" "$OUT/devices/$DEVICE/"
-fi
 (cd "$ROOT/dist" && zip -q -r "$NAME.zip" "$NAME")
 echo "$ROOT/dist/$NAME.zip"

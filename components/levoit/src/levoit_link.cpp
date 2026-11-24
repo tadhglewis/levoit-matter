@@ -44,6 +44,9 @@ std::atomic<uint32_t> last_frame_ms{0};
 std::atomic<bool> frame_seen{false};
 uint32_t last_status_ms = 0;
 uint32_t last_query_ms = 0;
+bool first_query_sent = false;
+bool request_v2 = true;
+bool request_known = false;
 uint32_t last_bytes_ms = 0;
 
 uint32_t now_ms() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
@@ -91,17 +94,18 @@ void write_ack(const Frame &received) {
     counter = next_counter(counter);
 }
 
-void deliver_status(const Frame &frame, uint32_t now) {
+bool deliver_status(const Frame &frame, uint32_t layout_command, uint32_t now) {
   PurifierState state;
-  if (!decode_status(*model, frame.command, frame.payload, frame.payload_len, state)) {
+  if (!decode_status(*model, layout_command, frame.payload, frame.payload_len, state)) {
     ESP_LOGW(TAG, "status frame rejected, %u bytes",
              static_cast<unsigned>(frame.payload_len));
-    return;
+    return false;
   }
   if (last_status_ms == 0)
     ESP_LOG_BUFFER_HEX(TAG, frame.payload, frame.payload_len);
   last_status_ms = now == 0 ? 1 : now;
   handlers.on_status(state, now);
+  return true;
 }
 
 void handle_frame(const Frame &frame) {
@@ -109,26 +113,15 @@ void handle_frame(const Frame &frame) {
   last_frame_ms.store(now);
   frame_seen.store(true);
 
-  static uint8_t empty_request_acks = 0;
-  bool empty_request_ack = frame.type == TYPE_ACK && frame.payload_len == 0 &&
-                           frame.command == model->status_request;
-  if (frame.payload_len > 0 || frame.type != TYPE_ACK ||
-      (empty_request_ack && empty_request_acks < 3)) {
-    if (empty_request_ack)
-      empty_request_acks++;
-    ESP_LOGI(TAG, "rx type=%02X counter=%02X command=%06" PRIX32 " trailer=%02X len=%u",
-             frame.type, frame.counter, frame.command, frame.trailer,
-             static_cast<unsigned>(frame.payload_len));
-    if (frame.payload_len > 0)
-      ESP_LOG_BUFFER_HEX(TAG, frame.payload, frame.payload_len);
-  }
-
   if (frame.type == TYPE_ACK) {
     if (awaiting_ack && frame.command == queue[queue_head].command)
       pop_head();
-    if (model->status_request != 0 && frame.command == model->status_request &&
-        frame.payload_len >= model->layout.min_payload_len)
-      deliver_status(frame, now);
+    uint32_t layout_command = status_command_for_reply(*model, frame.command);
+    if (layout_command != 0 && frame.payload_len > 0 &&
+        deliver_status(frame, layout_command, now)) {
+      request_known = true;
+      request_v2 = frame.command == model->status_request_v2;
+    }
     return;
   }
   if (frame.type != TYPE_SEND) {
@@ -140,7 +133,9 @@ void handle_frame(const Frame &frame) {
   write_ack(frame);
 
   if (is_status_command(*model, frame.command)) {
-    deliver_status(frame, now);
+    if (deliver_status(frame, frame.command, now) && !request_known)
+      request_v2 = model->status_command_v2 != 0 &&
+                   frame.command == model->status_command_v2;
     return;
   }
   if (frame.command == COMMAND_FILTER_RESET) {
@@ -188,11 +183,14 @@ void link_task(void *) {
       while (parser.next(frame))
         handle_frame(frame);
     }
-    if (model->status_request != 0 && queue_count == 0 &&
-        now - last_status_ms > STATUS_QUERY_MS &&
-        now - last_query_ms > STATUS_QUERY_MS) {
+    bool query_due = !first_query_sent || (now - last_status_ms > STATUS_QUERY_MS &&
+                                           now - last_query_ms > STATUS_QUERY_MS);
+    if (model->status_request != 0 && queue_count == 0 && query_due) {
+      first_query_sent = true;
       last_query_ms = now;
-      link_send(command_status_request(*model));
+      link_send(command_status_request(*model, request_v2));
+      if (!request_known && model->status_request_v2 != 0)
+        request_v2 = !request_v2;
     }
     handlers.on_poll(now);
     drive_transmit();

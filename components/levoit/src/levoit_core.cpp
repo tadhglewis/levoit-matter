@@ -9,25 +9,26 @@ constexpr uint8_t DISPLAY_FULL = 0x64;
 const ModelSpec CORE_200S = {
     "Core 200S", 3,    167, 6, false, 0x016040, 0,
     0x016140,    true, {12, 5, 6, 7, NO_FIELD, NO_FIELD, 10, NO_FIELD, NO_FIELD, NO_FIELD},
-    0,           {},
+    0,           {},   0,
 };
 
 const ModelSpec CORE_300S = {
     "Core 300S", 3,     214, 6, true, 0x013040, 0x01B040,
     0x013140,    false, {18, 5, 7, NO_FIELD, 10, 11, 13, 14, 17, 8},
     0x013240,    {19, 5, 8, NO_FIELD, 11, 12, 14, 15, 18, 9},
+    0x013340,
 };
 
 const ModelSpec CORE_400S = {
     "Core 400S", 4,     442, 6, true, 0x013040, 0x01B040,
     0x013140,    false, {18, 5, 7, NO_FIELD, 10, 11, 13, 14, 17, NO_FIELD},
-    0,           {},
+    0,           {},   0,
 };
 
 const ModelSpec CORE_600S = {
     "Core 600S", 4,    641, 6, true, 0x014041, 0,
     0x014141,    true, {22, 5, 8, NO_FIELD, 11, 12, 14, 15, NO_FIELD, NO_FIELD},
-    0,           {},
+    0,           {},   0,
 };
 
 namespace {
@@ -112,8 +113,20 @@ bool decode_with(const ModelSpec &model, const StatusLayout &layout,
 
 } // namespace
 
-Command command_status_request(const ModelSpec &model) {
-  return make_command(model.status_request, nullptr, 0);
+Command command_status_request(const ModelSpec &model, bool v2) {
+  return make_command(v2 && model.status_request_v2 != 0 ? model.status_request_v2
+                                                         : model.status_request,
+                      nullptr, 0);
+}
+
+uint32_t status_command_for_reply(const ModelSpec &model, uint32_t request) {
+  if (request == 0)
+    return 0;
+  if (request == model.status_request)
+    return model.status_command;
+  if (request == model.status_request_v2)
+    return model.status_command_v2;
+  return 0;
 }
 
 Command command_power(bool on) {

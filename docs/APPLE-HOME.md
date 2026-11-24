@@ -1,142 +1,147 @@
-# Apple Home and Matter: what we found
+# Apple Home and a Matter air purifier
 
-Notes on how Apple Home treats a Matter air purifier, gathered while building this firmware. Tested on iOS 27 with an Apple TV as home hub, against a Levoit Core 300S.
+What Apple Home does with this firmware. iOS 27, Apple TV as home hub, Levoit Core 300S.
 
-Each finding says where it comes from. "Observed" means we saw it on our own purifier, mostly by reading what Home sent in the firmware's log. "Reported" means other developers say so. Apple documents almost none of this.
+Apple documents almost none of it. "Observed" means we watched it happen, mostly by logging what Home sent. "Reported" means another developer says so and we did not check.
 
-## Summary
+## Short version
 
 | Question | Answer | Basis |
 |---|---|---|
-| Does Home render an Air Purifier? | Yes: speed slider, Auto/Manual/Off, filter condition and life | Observed |
-| Does Home render an Air Quality Sensor? | Yes: level and PM2.5 | Observed |
-| Can the device name its own parts? | No | Observed and reported |
-| Can the device set its default name? | No, always "Matter Accessory" when uncertified | Observed and reported |
-| Can air quality show "Excellent"? | No | Observed |
-| Can the filter be reset from Home? | No | Observed |
-| Does the Identify button work? | Only if the endpoint declares an indicator | Observed in part |
-| Can Home serve firmware updates? | Only through the Matter ledger | Apple's guide |
-| Does Home notice changes after an update? | Yes for device details, if the software version number goes up | Observed |
+| Does Home show an Air Purifier properly? | Yes | Observed |
+| Does Home show an Air Quality Sensor? | Yes | Observed |
+| Can a device name its own parts? | No | Observed, reported |
+| Can a device set its default name? | No | Observed, reported |
+| Can air quality read "Excellent"? | No | Observed |
+| Can you reset the filter from Home? | No | Observed |
+| Will Home deliver firmware updates? | Not without a vendor account | Apple's guide |
+| Does Home notice an update changed something? | Yes, if the version number went up | Observed |
 
 ## What renders
 
-- **Air Purifier endpoint.** A tile with a speed slider, a mode menu with Auto, Manual and Off, Filter Condition and Filter Life.
-- **Air Quality Sensor endpoint.** A tile with the air quality level and PM2.5 density.
-- **On/Off Plug-in Unit endpoints.** Each becomes an outlet tile. In Australian English Home calls it "Power point".
-- **Filter Life shows a bare number**, with no percent sign.
-- **The accessory page says** "This accessory has not been certified to work with HomeKit", once, because the firmware uses the test vendor ID and the SDK's test attestation certificate.
-- **Manufacturer and Model** rows show the Basic Information VendorName and ProductName. They are limited to 32 characters each.
+- An Air Purifier endpoint becomes a tile with a speed slider, a mode menu of Auto, Manual and Off, Filter Condition and Filter Life.
+- An Air Quality Sensor endpoint becomes a tile with the level and PM2.5.
+- Each On/Off Plug-in Unit endpoint becomes an outlet tile. In Australian English that is "Power point".
+- Filter Life is a bare number with no percent sign.
+- Manufacturer and Model show Basic Information's VendorName and ProductName, 32 characters each.
+- The accessory page says it "has not been certified to work with HomeKit". That is the test vendor ID and test attestation certificate.
 
-## Naming
+## Names
 
-### The parts of a device cannot be named by the device
+### Parts of a device
 
-Three On/Off endpoints on the purifier arrive as "Power point", "Power point 2" and "Power point 3". The user has to rename them, and the names are lost on a re-pair.
+Three On/Off endpoints arrive as "Power point", "Power point 2" and "Power point 3". You rename them by hand and lose the names on a re-pair.
 
 | Mechanism | Result | Basis |
 |---|---|---|
-| Fixed Label cluster | Ignored | Reported: an Espressif contributor says Apple does not use it, and a developer who set it and verified it with chip-tool saw no change ([esp-matter #917](https://github.com/espressif/esp-matter/issues/917)) |
-| User Label cluster | Ignored | Reported ([Apple forum thread 788551](https://developer.apple.com/forums/thread/788551)) |
-| Descriptor TagList with a label on each tag | Ignored | Observed: we attached "Sleep", "Display" and "Child Lock" and re-paired. Also reported by the matterbridge-hass maintainer ([discussion #86](https://github.com/Luligu/matterbridge-hass/discussions/86)). An Apple engineer said tags are not a supported way to influence presentation ([thread 852549](https://developer.apple.com/forums/thread/852549)). |
-| Bridged Device Basic Information NodeLabel, on bridged endpoints behind an Aggregator | Shown | Reported by two developers ([esp-matter #914](https://github.com/espressif/esp-matter/issues/914)). Not confirmed by Apple, and not tried here. |
+| Fixed Label cluster | Ignored | Reported. A developer set it, checked it with chip-tool, saw nothing change. [esp-matter #917](https://github.com/espressif/esp-matter/issues/917) |
+| User Label cluster | Ignored | Reported. [Apple forum 788551](https://developer.apple.com/forums/thread/788551) |
+| Descriptor TagList with a label per tag | Ignored | Observed. We tagged them "Sleep", "Display" and "Child Lock" and re-paired. Also [matterbridge-hass #86](https://github.com/Luligu/matterbridge-hass/discussions/86), and an Apple engineer saying tags are not a supported way to shape presentation, [forum 852549](https://developer.apple.com/forums/thread/852549). |
+| NodeLabel on bridged devices behind an Aggregator | Shown | Reported by two developers, [esp-matter #914](https://github.com/espressif/esp-matter/issues/914). We did not try it. |
 
-One caveat on our TagList test: we confirmed the firmware attached the labels without error, but had no second controller to read them back.
+One caveat on our TagList test. The firmware attached the labels without error, but we had no second controller to read them back.
 
-Apple's engineers, in the threads we found, said that a single accessory is what Home expects, that endpoints it does not support are ignored ([thread 844646](https://developer.apple.com/forums/thread/844646)), and in one case only that a device lacked sufficient metadata ([thread 772367](https://developer.apple.com/forums/thread/772367)). None named a way to label parts.
+The bridge route would probably work, and we did not take it. The switches would become three separate accessories, Home would list the purifier as a bridge, and the one report we found of a bridge sharing a node with an ordinary endpoint is of it breaking, [connectedhomeip #30481](https://github.com/project-chip/connectedhomeip/issues/30481).
 
-### The bridge route, and why we did not take it
+### The accessory's default name
 
-Making the purifier an Aggregator with the switches as bridged devices would probably get them named. We decided against it:
-
-- The switches would become separate accessories, no longer grouped with the purifier.
-- Home would list the purifier as a bridge, which it is not.
-- We found no report of an Aggregator and an ordinary application endpoint working together on one node in Home, and one report of a thermostat failing in that arrangement ([connectedhomeip #30481](https://github.com/project-chip/connectedhomeip/issues/30481)).
-- Root Basic Information NodeLabel is reported not to show as the bridge's name ([esp-matter #415](https://github.com/espressif/esp-matter/issues/415)).
-
-### The default accessory name
-
-At pairing Home offers "Matter Accessory" and asks for a name. Setting ProductName and VendorName did not change that. Other developers report the same after changing every name field ([esp-matter #246](https://github.com/espressif/esp-matter/issues/246)).
+Always "Matter Accessory". Setting ProductName and VendorName changes the Manufacturer and Model rows and nothing else. Others found the same, [esp-matter #246](https://github.com/espressif/esp-matter/issues/246).
 
 ## What Home sends to the fan
 
-Observed in the firmware's log, which records each write and which attribute it was.
+Observed. The firmware logs every write and which attribute it hit.
 
-| Action in Home | Writes |
+| You do | Home sends |
 |---|---|
-| Tap Off | FanMode = Off |
-| Tap Manual while off, no On/Off cluster | FanMode = High |
-| Tap Auto while off, no On/Off cluster | FanMode = Auto and FanMode = High, about 40 ms apart, in either order |
-| Tap Auto while off, with an On/Off cluster | On, then FanMode = Auto |
-| Drag the slider | A stream of PercentSetting writes, several a second |
-| Drag the slider to zero | PercentSetting = 0 |
+| Tap Off | FanMode Off, or the Off command if the endpoint has On/Off |
+| Tap Manual while off, no On/Off cluster | FanMode High |
+| Tap Auto while off, no On/Off cluster | FanMode Auto and FanMode High, 40 ms apart, in either order |
+| Tap Auto while off, with an On/Off cluster | On, then FanMode Auto |
+| Drag the slider | A stream of PercentSetting writes |
+| "Turn the purifier on" | On, if the endpoint has On/Off |
 
-- **Home has no Low, Medium or High control.** The mode menu only ever writes Off, Auto or High.
-- **Home uses FanMode = High to mean "turn on"** when the purifier endpoint has no On/Off cluster. Tapping Auto from off therefore produces two conflicting mode writes, and because the order varies, obeying them in sequence sometimes leaves the purifier in manual.
-- **With an On/Off cluster on the purifier endpoint, Home uses it for power.** Turning the purifier on and off from Home or Siri arrives as On and Off commands, and the FanMode = High writes stop. This is the fix for the conflicting pair above. Tapping Auto while off then arrives as On followed 100 ms later by FanMode = Auto, with no High.
-- **The cluster must accept On and Toggle as well as Off.** esp-matter's `cluster::on_off::create` only registers Off. With only that, Home's On was refused as an unsupported command and Siri said "no response". Add `command::create_on` and `command::create_toggle`.
-- **The slider sends raw percentages**, not steps. The firmware rounds to the nearest speed and reports the stepped value back.
-- **Home redraws the slider when the device's answer matches Matter's rounding.** Matter maps a percentage to a speed by rounding up. With that rounding, a drag from off to 8% was redrawn at 33% and 51% at 66%. When the firmware briefly rounded to the nearest speed instead, a drag to 44% went to speed 1 and reported 33%, and Home left the slider at 44% until the app was reopened. Follow the standard's rounding.
+### Give the purifier an On/Off cluster
+
+Home has no Low, Medium or High control. Its mode menu only writes Off, Auto or High, and without an On/Off cluster it uses High to mean "turn on". Tap Auto from off and you get two mode writes that contradict each other, in an order that varies. Obey them in sequence and the purifier lands in manual about half the time.
+
+We first papered over this with timing rules. Then we added an On/Off cluster to the purifier endpoint, Home started using it for power, the High writes stopped, and the timing rules came out.
+
+The cluster has to accept On and Toggle. esp-matter's `cluster::on_off::create` registers only Off, because On is conditional in the spec. Call `command::create_on` and `command::create_toggle` yourself. Miss that and Home's On comes back "unsupported command" and Siri says "no response".
+
+### The slider
+
+Home sends raw percentages, several per drag. Matter says round up to the next speed, so with three speeds 34% is speed 2. Follow that. We tried rounding to nearest and it made things worse.
+
+Home redraws the slider at the stepped value only when your final position changed the fan's actual speed. We checked two screen recordings frame by frame against the log. Every move got the stepped value sent back. Home redrew about a third of them, and those were exactly the moves where a new current-speed report followed the last write. If the speed was already right, or changed mid-drag, the slider stays where your finger left it until the app is reopened.
+
+Sending the stepped value back faster did nothing. Sending it again later did nothing. The purifier and the room tile are right throughout.
+
+Home does the same with a switch. Turn one on that the device immediately reports as off, and Home shows it on for a few seconds before it gives in.
 
 ## Air quality
 
-Home has five levels and Matter has six, and Home matches them by name, not by position.
+Home has five levels, Matter has six, and Home matches them by name.
 
 | Home | Matter |
 |---|---|
-| Excellent | no equivalent |
+| Excellent | Nothing |
 | Good | Good, Matter's best |
 | Fair | Fair |
-| Inferior | not confirmed |
+| Inferior | Not confirmed |
 | Poor | Poor |
 
-So a purifier reporting its cleanest reading shows "Good", one step below the top of Home's scale, and an automation on "Excellent" never fires. We have only seen "Good" displayed. How Home places Moderate, Very Poor and Extremely Poor is unknown.
-
-## Siri
-
-- Siri has no notion of a purifier's sleep mode. "Turn on sleep mode on the air purifier" turned the purifier off.
-- An extra On/Off endpoint is only reachable by voice through the name the user gives its tile, or through a scene.
+A purifier reporting its cleanest reading shows "Good", one below the top of Home's scale. An automation on "Excellent" never fires. We have only seen "Good" on screen.
 
 ## Filter
 
-- Home shows HEPA Filter Monitoring's Condition as "Filter Life" and its ChangeIndication as "Filter Condition".
-- Home offers no way to send the ResetCondition command. The purifier's own button does the reset.
+Home shows HEPA Filter Monitoring's Condition as "Filter Life" and ChangeIndication as "Filter Condition". It has no button for ResetCondition.
+
+## Siri
+
+Siri has no idea what a purifier's sleep mode is. "Turn on sleep mode on the air purifier" turned the purifier off. An extra On/Off endpoint is reachable by the name you gave its tile, or through a scene.
 
 ## Identify
 
-The naming screen during pairing has an Identify button. With the endpoint's IdentifyType left at the SDK default of None, it did nothing. We set it to VisibleIndicator and implemented the command. Whether the button now works is not yet confirmed.
+The naming screen during pairing has an Identify button. With IdentifyType left at the SDK default of None it did nothing. We set VisibleIndicator and implemented the command. Not yet confirmed that the button works.
 
 ## Pairing
 
-- **Bluetooth pairing with Wi-Fi handover works** with the SDK's default path. The phone sends Wi-Fi credentials over Bluetooth.
-- **Home creates two fabrics** on the device when it pairs.
-- **"Turn On Pairing Mode"** in the accessory's settings opens a window for a second controller and shows a one-time code. The code on the label does not work once the device is paired.
-- **Home re-reads a device's details when its software version number increases.** We changed VendorName in an update that also raised the version from 1 to 2, and the Manufacturer row changed without a re-pair. Earlier updates that kept the version at 1 changed nothing in Home. So every release has to bump the version.
-- **Whether Home also notices endpoints being added or removed after a version bump is untested.** Developers report it keeping old endpoints until the accessory is re-added, without saying whether their update raised the version.
+- Bluetooth pairing with Wi-Fi handover works with the SDK's defaults.
+- Home creates two fabrics on the device.
+- "Turn On Pairing Mode" in the accessory's settings opens a window for a second controller with a one-time code. The label's code is dead once the device is paired.
+
+## After an update
+
+Home re-reads a device's details when its software version number goes up. We changed VendorName in an update that also raised the version from 1 to 2, and the Manufacturer row changed with no re-pair. Every earlier update left the version at 1 and changed nothing in Home.
+
+Bump the version on every release.
+
+Whether Home also notices endpoints added or removed is untested. Others report it keeping stale endpoints until the accessory is re-added, without saying whether they bumped the version.
 
 ## Firmware updates
 
-From [Apple's Matter OTA User Guide](https://developer.apple.com/accessories/Apple-Matter-OTA-User-Guide.pdf), release R5.
+From [Apple's Matter OTA User Guide](https://developer.apple.com/accessories/Apple-Matter-OTA-User-Guide.pdf), R5.
 
-- The home hub acts as the Matter OTA provider. It finds images through the Matter Distributed Compliance Ledger.
-- An uncertified accessory can be updated this way, but only from the test ledger, with an Apple profile installed on the phone and every hub.
-- Publishing to the test ledger needs a vendor account tied to a vendor ID. We use the shared test ID, which nobody owns. We did not find a route for an individual.
-- Apple tells developers to expect the update to appear within 24 hours and to be applied within 48.
-- Developers report updates published to the test ledger appearing in Google Home and Home Assistant but not in Apple Home ([thread 812302](https://developer.apple.com/forums/thread/812302)).
+- The home hub is the OTA provider. It finds images through the Matter ledger.
+- An uncertified accessory can be updated, from the test ledger only, with an Apple profile on the phone and every hub.
+- Publishing to the test ledger needs a vendor account tied to a vendor ID. We use the shared test ID. We found no route for an individual.
+- Apple says to allow 24 hours for the update to appear and 48 for it to apply.
+- Developers report test-ledger updates showing up in Google Home and Home Assistant and never in Apple Home, [forum 812302](https://developer.apple.com/forums/thread/812302).
 
-This firmware uses its own authenticated HTTP update instead.
+So this firmware has its own HTTP update.
 
-## What native HomeKit would give that Matter in Home does not
+## What HomeKit would fix
 
-- Child lock as a property of the purifier, not a separate tile.
-- Names supplied by the device for its switches.
-- The full five-level air quality scale, including Excellent.
-- A filter reset from Home.
+- Child lock as a property of the purifier.
+- Names for the switches, supplied by the device.
+- All five air quality levels.
+- A filter reset in Home.
 
-It would cost QR-code Wi-Fi setup, which needs Apple's licensed accessory programme, and every non-Apple controller.
+It costs QR-code Wi-Fi setup, which needs Apple's licensed accessory programme, and every controller that is not Apple's.
 
 ## Other sources
 
-- [connectedhomeip: Matter development and testing on Apple devices](https://github.com/project-chip/connectedhomeip/blob/master/docs/guides/darwin.md). Device types drive accessory categories. It lists Air Purifier and Bridge as supported and says nothing about names.
-- [Apple: Matter Accessory Best Practices for Apple Home](https://developer.apple.com/apple-home/downloads/Matter-Accessory-Best-Practices-for-Apple-Home.pdf). Covers Thread and network diagnostics. Nothing on naming or composition.
-- [Apple HomeKit air quality values](https://learn.microsoft.com/fil-ph/dotnet/api/homekit.hmcharacteristicvalueairquality?view=net-ios-26.0-10.0)
-- [Matter 1.4 standard namespaces](https://csa-iot.org/wp-content/uploads/2024/11/23-31936-003_matter-1-4-standard-namespaces.pdf)
+- [connectedhomeip: Matter on Apple devices](https://github.com/project-chip/connectedhomeip/blob/master/docs/guides/darwin.md). Device types decide the accessory category. Nothing about names.
+- [Apple: Matter Accessory Best Practices](https://developer.apple.com/apple-home/downloads/Matter-Accessory-Best-Practices-for-Apple-Home.pdf). Thread and network diagnostics. Nothing about names or composition.
+- [Apple forum 844646](https://developer.apple.com/forums/thread/844646). An Apple engineer: one accessory is what Home expects, and it ignores endpoints it does not support.
+- [HomeKit air quality values](https://learn.microsoft.com/fil-ph/dotnet/api/homekit.hmcharacteristicvalueairquality?view=net-ios-26.0-10.0)

@@ -129,7 +129,7 @@ static bool decode_capture(const ModelSpec &model, const uint8_t *raw,
     return false;
   if (type == TYPE_SEND && !is_status_command(model, frame.command))
     return false;
-  if (type == TYPE_ACK && frame.command != model.status_request)
+  if (type == TYPE_ACK && status_command_for_reply(model, frame.command) == 0)
     return false;
   return decode_status(model, frame.command, frame.payload, frame.payload_len, state);
 }
@@ -324,6 +324,11 @@ static void test_plans() {
       CHECK(plan.commands[i].command != 0x0100A0);
   }
   CHECK(command_status_request(CORE_300S).command == 0x013140);
+  CHECK(command_status_request(CORE_300S, true).command == 0x013340);
+  CHECK(command_status_request(CORE_200S, true).command == 0x016140);
+  CHECK(status_command_for_reply(CORE_300S, 0x013140) == 0x013040);
+  CHECK(status_command_for_reply(CORE_300S, 0x013340) == 0x013240);
+  CHECK(status_command_for_reply(CORE_300S, 0x0129A1) == 0 && status_command_for_reply(CORE_200S, 0) == 0);
   CHECK(command_status_request(CORE_300S).payload_len == 0);
 
   CHECK(plan_display(manual2, false).count == 1);
