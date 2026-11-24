@@ -172,7 +172,9 @@ The script remembers the new one in `secrets/ota-token.current`. A factory reset
 
 ## 8. Factory reset
 
-Tap the Display Off button six times within fifteen seconds, about one tap a second. This clears Matter pairing and Wi-Fi and reboots into pairing mode.
+Hold the button the stock firmware uses for Wi-Fi setup. After about five seconds the Wi-Fi light changes, which means the hold has registered. Keep holding for five more seconds. The purifier clears Matter pairing and Wi-Fi and reboots into pairing mode. Letting go early cancels it.
+
+This has been confirmed on a Core 300S. Other models may not report the button hold, in which case removing the purifier from its controller is the way to reset it.
 
 Removing the purifier from the last controller does the same thing.
 
@@ -195,7 +197,7 @@ Do these with the case still open and the serial cable on. Save the whole log fr
 | 4 | `no ack for command 013140` every five seconds, and nothing else | The purifier does not answer status requests. Survivable: state then only refreshes when something changes. |
 | 5 | `filter degradation direction=1` | Correct. 0 means the filter will read backwards. |
 | 6 | The first status frame, logged in hex | On the 300S and 400S, byte 17 is an error field nobody has decoded. Note its value. |
-| 7 | The reset gesture | Tap steadily, about once a second. Test it before closing the case. |
+| 7 | The reset hold | Hold the Wi-Fi button for ten seconds. Test it before closing the case. |
 
 ## Bench testing without the purifier
 

@@ -147,6 +147,10 @@ void handle_frame(const Frame &frame) {
     handlers.on_filter_reset(now);
     return;
   }
+  if (frame.command == COMMAND_BUTTON_HOLD && frame.payload_len >= 1) {
+    handlers.on_button_hold(frame.payload[0], now);
+    return;
+  }
   ESP_LOGI(TAG, "unhandled command %06" PRIX32 ", %u bytes", frame.command,
            static_cast<unsigned>(frame.payload_len));
 }

@@ -254,6 +254,15 @@ void reset_everything() {
   esp_matter::factory_reset();
 }
 
+esp_err_t identification_callback(esp_matter::identification::callback_type_t type,
+                                  uint16_t, uint8_t, uint8_t, void *) {
+  if (type == esp_matter::identification::START)
+    post(RequestKind::IDENTIFY, 1);
+  else if (type == esp_matter::identification::STOP)
+    post(RequestKind::IDENTIFY, 0);
+  return ESP_OK;
+}
+
 bool has_fabric() {
   return chip::Server::GetInstance().GetFabricTable().FabricCount() > 0;
 }
@@ -431,7 +440,7 @@ esp_err_t matter_setup_start() {
 
   esp_matter::node::config_t node_config;
   esp_matter::node_t *node =
-      esp_matter::node::create(&node_config, attribute_callback, nullptr);
+      esp_matter::node::create(&node_config, attribute_callback, identification_callback);
   if (node == nullptr)
     return ESP_FAIL;
 

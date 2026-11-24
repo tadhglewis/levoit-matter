@@ -24,7 +24,6 @@ constexpr const char *NVS_USED_CADR = "used_cadr";
 constexpr const char *NVS_RUNTIME = "runtime_min";
 constexpr uint32_t SAVE_EVERY_MINUTES = 30;
 constexpr uint32_t REPUBLISH_WINDOW_MS = 3000;
-constexpr uint32_t DISPLAY_COMMAND_WINDOW_MS = 3000;
 
 #if CONFIG_LEVOIT_MODEL_CORE200S
 const ModelSpec &model = CORE_200S;
@@ -40,7 +39,7 @@ QueueHandle_t requests = nullptr;
 
 FilterLife filter(model);
 Holdoff holdoff;
-ResetGesture reset_gesture;
+HoldReset hold_reset;
 
 PurifierState raw_state;
 bool have_state = false;
@@ -50,15 +49,14 @@ bool have_view = false;
 
 uint32_t republish_started_ms = 0;
 bool republish_active = false;
-uint32_t display_command_ms = 0;
-bool display_commanded = false;
 uint32_t last_minute_ms = 0;
 uint32_t saved_runtime = 0;
 bool filter_led_on = false;
 
 WifiLed wifi_led = WifiLed::OFF;
+WifiLed wifi_led_shown = WifiLed::OFF;
 bool wifi_led_sent = false;
-uint32_t wifi_led_since_ms = 0;
+bool identifying = false;
 
 std::atomic<bool> ready{false};
 std::atomic<uint8_t> filter_percent{100};
@@ -106,18 +104,27 @@ void apply_plan(const Plan &plan, uint32_t now_ms) {
   republish_active = true;
 }
 
-void set_wifi_led(WifiLed state, uint32_t now_ms) {
-  if (wifi_led == state && wifi_led_sent)
+void show_wifi_led() {
+  bool attention = identifying || hold_reset.holding();
+  WifiLed shown = !attention                    ? wifi_led
+                  : wifi_led == WifiLed::BLINK ? WifiLed::SOLID
+                                               : WifiLed::BLINK;
+  if (shown == wifi_led_shown && wifi_led_sent)
     return;
-  wifi_led = state;
+  wifi_led_shown = shown;
   wifi_led_sent = true;
-  wifi_led_since_ms = now_ms;
-  link_send(command_wifi_led(state));
+  link_send(command_wifi_led(shown));
 }
 
 void handle_request(const Request &request, uint32_t now_ms) {
   if (request.kind == RequestKind::WIFI_LED) {
-    set_wifi_led(static_cast<WifiLed>(request.value), now_ms);
+    wifi_led = static_cast<WifiLed>(request.value);
+    show_wifi_led();
+    return;
+  }
+  if (request.kind == RequestKind::IDENTIFY) {
+    identifying = request.value != 0;
+    show_wifi_led();
     return;
   }
   if (request.kind == RequestKind::FILTER_RESET) {
@@ -154,12 +161,7 @@ void handle_request(const Request &request, uint32_t now_ms) {
     apply_plan(plan_sleep(current, request.value != 0), now_ms);
     break;
   case RequestKind::DISPLAY: {
-    Plan plan = plan_display(current, request.value != 0);
-    if (plan.count > 0) {
-      display_command_ms = now_ms;
-      display_commanded = true;
-    }
-    apply_plan(plan, now_ms);
+    apply_plan(plan_display(current, request.value != 0), now_ms);
     break;
   }
   case RequestKind::CHILD_LOCK:
@@ -179,20 +181,19 @@ void on_status(const PurifierState &state, uint32_t now_ms) {
   if (was_on && !state.power)
     save_filter();
 
-  bool commanded = display_commanded &&
-                   now_ms - display_command_ms < DISPLAY_COMMAND_WINDOW_MS;
-  if (reset_gesture.feed(state.display_on, commanded, now_ms)) {
-    ESP_LOGW(TAG, "reset gesture detected");
-    callbacks.factory_reset();
-  }
-
   if (!ready.exchange(true)) {
     ESP_LOGI(TAG, "MCU %u.%u.%u", state.mcu_major, state.mcu_minor,
              state.mcu_patch);
     if (wifi_led_sent)
-      link_send(command_wifi_led(wifi_led));
+      link_send(command_wifi_led(wifi_led_shown));
   }
   publish(now_ms, false);
+}
+
+void on_button_hold(uint8_t event, uint32_t now_ms) {
+  ESP_LOGI(TAG, "button hold event %u", event);
+  hold_reset.feed(event, now_ms);
+  show_wifi_led();
 }
 
 void on_filter_reset(uint32_t now_ms) {
@@ -217,6 +218,11 @@ void on_poll(uint32_t now_ms) {
         save_filter();
       publish(now_ms, false);
     }
+  }
+
+  if (hold_reset.due(now_ms)) {
+    ESP_LOGW(TAG, "button held, resetting to pairing mode");
+    callbacks.factory_reset();
   }
 
   if (republish_active && now_ms - republish_started_ms > REPUBLISH_WINDOW_MS) {
@@ -253,7 +259,7 @@ esp_err_t purifier_start(const PurifierCallbacks &purifier_callbacks) {
     requests = xQueueCreate(16, sizeof(Request));
   if (requests == nullptr)
     return ESP_ERR_NO_MEM;
-  LinkHandlers handlers = {on_status, on_filter_reset, on_poll};
+  LinkHandlers handlers = {on_status, on_filter_reset, on_button_hold, on_poll};
   return link_start(model, TX_PIN, RX_PIN, handlers);
 }
 

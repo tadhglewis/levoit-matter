@@ -104,7 +104,8 @@ The purifier does not report filter life. The firmware counts airflow: each minu
 - The attestation certificate is still the SDK's test one, so Apple Home shows the uncertified prompt. A real one needs a vendor ID.
 - Bluetooth is only used for pairing and is shut down afterwards to free memory. It cannot be restarted without a reboot.
 - That is why removing the purifier from its last controller does a full factory reset: it is the only way back to pairing mode.
-- The reset gesture is six uncommanded display changes within fifteen seconds. Changes the firmware itself asked for do not count.
+- The purifier's controller reports a long press of its Wi-Fi button as `01 02 D1`, with payload 2 when the hold registers and 3 on release. Five seconds of holding after that first message triggers a factory reset. An earlier design counted display toggles, which was easy to trigger by accident.
+- Matter's Identify command inverts the Wi-Fi light for its duration.
 
 ## Updates
 

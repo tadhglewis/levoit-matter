@@ -240,30 +240,20 @@ void Holdoff::apply(PurifierState &state, uint32_t now_ms) {
   }
 }
 
-bool ResetGesture::feed(bool display_on, bool commanded, uint32_t now_ms) {
-  if (!this->have_last_) {
-    this->have_last_ = true;
-    this->last_ = display_on;
+void HoldReset::feed(uint8_t event, uint32_t now_ms) {
+  if (event == STARTED) {
+    this->holding_ = true;
+    this->started_ms_ = now_ms;
+  } else if (event == RELEASED) {
+    this->holding_ = false;
+  }
+}
+
+bool HoldReset::due(uint32_t now_ms) {
+  if (!this->holding_ || now_ms - this->started_ms_ < HOLD_MS)
     return false;
-  }
-  if (display_on == this->last_)
-    return false;
-  this->last_ = display_on;
-  if (commanded) {
-    this->count_ = 0;
-    return false;
-  }
-  if (this->count_ == TOGGLES) {
-    for (uint8_t i = 1; i < TOGGLES; i++)
-      this->times_[i - 1] = this->times_[i];
-    this->count_--;
-  }
-  this->times_[this->count_++] = now_ms;
-  if (this->count_ == TOGGLES && now_ms - this->times_[0] <= WINDOW_MS) {
-    this->count_ = 0;
-    return true;
-  }
-  return false;
+  this->holding_ = false;
+  return true;
 }
 
 } // namespace levoit

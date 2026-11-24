@@ -72,18 +72,19 @@ private:
   uint32_t started_ms_{0};
 };
 
-class ResetGesture {
+class HoldReset {
 public:
-  static constexpr uint8_t TOGGLES = 6;
-  static constexpr uint32_t WINDOW_MS = 15000;
+  static constexpr uint8_t STARTED = 0x02;
+  static constexpr uint8_t RELEASED = 0x03;
+  static constexpr uint32_t HOLD_MS = 5000;
 
-  bool feed(bool display_on, bool commanded, uint32_t now_ms);
+  void feed(uint8_t event, uint32_t now_ms);
+  bool holding() const { return this->holding_; }
+  bool due(uint32_t now_ms);
 
 private:
-  bool have_last_{false};
-  bool last_{false};
-  uint32_t times_[TOGGLES]{};
-  uint8_t count_{0};
+  bool holding_{false};
+  uint32_t started_ms_{0};
 };
 
 } // namespace levoit

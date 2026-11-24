@@ -18,6 +18,7 @@ enum class RequestKind : uint8_t {
   CHILD_LOCK,
   FILTER_RESET,
   WIFI_LED,
+  IDENTIFY,
 };
 
 struct Request {

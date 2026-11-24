@@ -72,6 +72,7 @@ struct Command {
 };
 
 constexpr uint32_t COMMAND_FILTER_RESET = 0x01E4A5;
+constexpr uint32_t COMMAND_BUTTON_HOLD = 0x0102D1;
 
 bool is_status_command(const ModelSpec &model, uint32_t command);
 bool decode_status(const ModelSpec &model, const uint8_t *payload, size_t len,

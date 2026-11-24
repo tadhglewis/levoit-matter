@@ -11,6 +11,7 @@ namespace levoit {
 struct LinkHandlers {
   void (*on_status)(const PurifierState &state, uint32_t now_ms);
   void (*on_filter_reset)(uint32_t now_ms);
+  void (*on_button_hold)(uint8_t event, uint32_t now_ms);
   void (*on_poll)(uint32_t now_ms);
 };
 

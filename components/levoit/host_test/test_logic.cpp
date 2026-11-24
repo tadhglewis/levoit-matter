@@ -201,17 +201,6 @@ static void test_models() {
   CHECK(decode_status(CORE_300S, 0x013240, woken, 19, state) && !state.display_on);
   woken[7] = 0x00;
   CHECK(decode_status(CORE_300S, 0x013240, woken, 19, state) && !state.display_on);
-  ResetGesture touches;
-  bool reset = false;
-  for (int press = 0; press < 6; press++) {
-    woken[7] = 0x64;
-    decode_status(CORE_300S, 0x013240, woken, 19, state);
-    reset |= touches.feed(state.display_on, false, press * 2000);
-    woken[7] = 0x00;
-    decode_status(CORE_300S, 0x013240, woken, 19, state);
-    reset |= touches.feed(state.display_on, false, press * 2000 + 1000);
-  }
-  CHECK(!reset);
   uint8_t ramped[19];
   memcpy(ramped, v2_300s, 19);
   ramped[9] = 0x03;
@@ -388,43 +377,18 @@ static void test_holdoff() {
   CHECK(untouched.level == 2);
 }
 
-static void test_reset_gesture() {
-  ResetGesture gesture;
-  bool display = true;
-  CHECK(!gesture.feed(display, false, 0));
-  bool fired = false;
-  for (int i = 0; i < 6; i++) {
-    display = !display;
-    fired = gesture.feed(display, false, 500 + i * 500);
-    CHECK(fired == (i == 5));
-  }
-
-  ResetGesture slow;
-  slow.feed(true, false, 0);
-  display = true;
-  fired = false;
-  for (int i = 0; i < 6; i++) {
-    display = !display;
-    fired |= slow.feed(display, false, 1000 + i * 4000);
-  }
-  CHECK(!fired);
-
-  ResetGesture commanded;
-  commanded.feed(true, false, 0);
-  display = true;
-  fired = false;
-  for (int i = 0; i < 12; i++) {
-    display = !display;
-    fired |= commanded.feed(display, true, 100 + i * 100);
-  }
-  CHECK(!fired);
-
-  ResetGesture repeated;
-  repeated.feed(true, false, 0);
-  fired = false;
-  for (int i = 0; i < 20; i++)
-    fired |= repeated.feed(true, false, i * 100);
-  CHECK(!fired);
+static void test_hold_reset() {
+  HoldReset hold;
+  CHECK(!hold.due(100000));
+  hold.feed(HoldReset::STARTED, 1000);
+  CHECK(hold.holding() && !hold.due(5999));
+  hold.feed(HoldReset::RELEASED, 1700);
+  CHECK(!hold.holding() && !hold.due(20000));
+  hold.feed(HoldReset::STARTED, 30000);
+  CHECK(!hold.due(34999) && hold.due(35000));
+  CHECK(!hold.holding() && !hold.due(36000));
+  hold.feed(0x09, 40000);
+  CHECK(!hold.holding());
 }
 
 static void test_filter() {
@@ -477,7 +441,7 @@ int main() {
   test_view();
   test_plans();
   test_holdoff();
-  test_reset_gesture();
+  test_hold_reset();
   test_filter();
   printf("%d checks, %d failures\n", checks, failures);
   return failures == 0 ? 0 : 1;
