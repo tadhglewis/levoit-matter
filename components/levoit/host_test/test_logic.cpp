@@ -195,6 +195,23 @@ static void test_models() {
   for (int i = 0; i < 60; i++)
     idle_filter.tick_minute(state, 3);
   CHECK(idle_filter.used_cadr() == 44);
+  uint8_t woken[19];
+  memcpy(woken, v2_300s, 19);
+  woken[8] = 0x00;
+  CHECK(decode_status(CORE_300S, 0x013240, woken, 19, state) && !state.display_on);
+  woken[7] = 0x00;
+  CHECK(decode_status(CORE_300S, 0x013240, woken, 19, state) && !state.display_on);
+  ResetGesture touches;
+  bool reset = false;
+  for (int press = 0; press < 6; press++) {
+    woken[7] = 0x64;
+    decode_status(CORE_300S, 0x013240, woken, 19, state);
+    reset |= touches.feed(state.display_on, false, press * 2000);
+    woken[7] = 0x00;
+    decode_status(CORE_300S, 0x013240, woken, 19, state);
+    reset |= touches.feed(state.display_on, false, press * 2000 + 1000);
+  }
+  CHECK(!reset);
   uint8_t ramped[19];
   memcpy(ramped, v2_300s, 19);
   ramped[9] = 0x03;
@@ -212,7 +229,7 @@ static void test_models() {
   CHECK(decode_status(CORE_400S, payload_400s, 18, state));
   CHECK(state.level == 4 && state.display_on);
   CHECK(decode_status(CORE_300S, payload_400s, 18, state));
-  CHECK(state.level == 0 && !state.display_on);
+  CHECK(state.level == 0);
 
   MatterView level3 = make_view(CORE_400S, state_of(true, Mode::MANUAL, 3), 3, 80);
   CHECK(level3.fan_mode == FanModeView::MEDIUM && level3.percent_setting == 75);

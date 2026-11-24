@@ -14,8 +14,8 @@ const ModelSpec CORE_200S = {
 
 const ModelSpec CORE_300S = {
     "Core 300S", 3,     214, 6, true, 0x013040, 0x01B040,
-    0x013140,    false, {18, 5, 6, NO_FIELD, 10, 11, 13, 14, 17, NO_FIELD},
-    0x013240,    {19, 5, 7, NO_FIELD, 11, 12, 14, 15, 18, 9},
+    0x013140,    false, {18, 5, 7, NO_FIELD, 10, 11, 13, 14, 17, 8},
+    0x013240,    {19, 5, 8, NO_FIELD, 11, 12, 14, 15, 18, 9},
 };
 
 const ModelSpec CORE_400S = {
