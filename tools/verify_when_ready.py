@@ -1,40 +1,49 @@
 #!/usr/bin/env python3
-"""Wait for the ESP32 to enter download mode, then verify its flash against stock-backup.bin.
+"""Check the chip's flash against the stock backup, over a flaky serial connection.
 
-Read-only: nothing is written to the chip. Run it BEFORE the grounded power-up.
-It listens like a serial monitor, and the moment it sees "waiting for download"
-it hands over to esptool verify_flash. If the connection drops it goes back to
-listening so you can just repeat the power-up.
+Read-only: nothing is written to the chip. Start it before the grounded
+power-up. It listens on the port and runs esptool verify-flash the moment the
+chip enters download mode. If the connection drops it listens again.
 
-From the repo root:
+    ./tools/verify_when_ready.py [-d device] <port>
+    ./tools/verify_when_ready.py <port> --now        # chip already in download mode
+    ./tools/verify_when_ready.py <port> --file other.bin
 
-    .venv/bin/python verify_when_ready.py
-    .venv/bin/python verify_when_ready.py --now      # chip is already in download mode
+Compares against devices/<device>/stock-backup.bin unless --file is given.
+Useful straight after a backup, before anything is flashed.
 """
 import argparse
 import os
+import subprocess
 import sys
 import time
+import venv
 
-import esptool
-import serial  # pyserial, installed with esptool
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+VENV = os.path.join(ROOT, ".venv")
+
+
+def ensure_venv():
+    python = os.path.join(VENV, "bin", "python")
+    try:
+        import serial  # noqa: F401
+        return
+    except ImportError:
+        pass
+    if os.path.realpath(sys.prefix) == os.path.realpath(VENV):
+        sys.exit("pyserial is missing from .venv. Run: .venv/bin/pip install esptool")
+    if not os.path.exists(os.path.join(VENV, "bin", "esptool")):
+        venv.create(VENV, with_pip=True)
+        subprocess.run([python, "-m", "pip", "install", "-q", "esptool"], check=True)
+    os.execv(python, [python, os.path.abspath(__file__), *sys.argv[1:]])
+
+
+ensure_venv()
+import serial  # noqa: E402
 
 MARKER = b"waiting for download"
 FLASH_SIZE = 0x400000
-
-
-class Tee:
-    """Print everything and keep a copy so we can read esptool's verdict."""
-
-    def __init__(self, real):
-        self.real, self.text = real, ""
-
-    def write(self, s):
-        self.text += s
-        return self.real.write(s)
-
-    def flush(self):
-        self.real.flush()
+ESPTOOL = os.environ.get("ESPTOOL") or os.path.join(VENV, "bin", "esptool")
 
 
 def wait_for_download(port):
@@ -55,41 +64,44 @@ def wait_for_download(port):
 
 
 def verify(args):
-    real, tee = sys.stdout, None
-    tee = Tee(real)
-    sys.stdout = tee
-    try:
-        esptool.main(args)
-    except SystemExit:
-        pass
-    except Exception as e:  # noqa: BLE001
-        print(f"esptool error: {e}")
-    finally:
-        sys.stdout = real
-    t = tee.text.lower()
-    if "digest matched" in t or "verification successful" in t:
+    print("+ esptool " + " ".join(args) + "\n")
+    proc = subprocess.Popen([ESPTOOL, *args], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    text = ""
+    for line in proc.stdout:
+        sys.stdout.write(line)
+        sys.stdout.flush()
+        text += line.lower()
+    proc.wait()
+    if proc.returncode == 0 and "verification successful" in text:
         return "ok"
-    if "digest mismatch" in t or "verify failed" in t:
+    if "digest mismatch" in text or "verification failed" in text:
         return "mismatch"
     return "noconnect"
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--port", default=os.environ.get("PORT", "/dev/cu.PL2303G-USBtoUART10"))
+    ap = argparse.ArgumentParser(description="Verify the chip's flash against the stock backup.")
+    ap.add_argument("-d", "--device", default="purifier", help="device folder under devices/ (default: purifier)")
+    ap.add_argument("port", nargs="?", default=os.environ.get("PORT"), help="serial port, or set PORT")
     ap.add_argument("--baud", default="115200")
-    ap.add_argument("--file", default="stock-backup.bin")
-    ap.add_argument("--now", action="store_true", help="skip waiting; chip is already in download mode")
+    ap.add_argument("--file", help="image to compare against (default: the device's stock-backup.bin)")
+    ap.add_argument("--now", action="store_true", help="the chip is already in download mode")
     a = ap.parse_args()
 
-    if not os.path.exists(a.file):
-        sys.exit(f"{a.file} not found. Run this from the folder that contains it.")
-    size = os.path.getsize(a.file)
+    if not a.port:
+        ap.error("give the serial port, or set PORT")
+    if not a.device or not all(c.isalnum() or c in "-_" for c in a.device):
+        ap.error("device name may only use letters, digits, - and _")
+
+    image = a.file or os.path.join(ROOT, "devices", a.device, "stock-backup.bin")
+    if not os.path.exists(image):
+        sys.exit(f"{image} not found.")
+    size = os.path.getsize(image)
     if size != FLASH_SIZE:
-        sys.exit(f"{a.file} is {size} bytes, expected {FLASH_SIZE}. Not a complete backup.")
+        sys.exit(f"{image} is {size} bytes, expected {FLASH_SIZE}. Not a complete backup.")
 
     args = ["--chip", "esp32", "--port", a.port, "--baud", a.baud,
-            "--before", "no_reset", "--after", "no_reset", "verify_flash", "0x0", a.file]
+            "--before", "no-reset", "--after", "no-reset", "verify-flash", "0x0", image]
     skip_wait = a.now
     while True:
         if not skip_wait:
@@ -97,13 +109,14 @@ def main():
         skip_wait = False
         result = verify(args)
         if result == "ok":
-            print("\n*** VERIFIED: the chip's flash matches", a.file, "***")
+            print(f"\n*** VERIFIED: the chip's flash matches {os.path.relpath(image, ROOT)} ***")
             return
         if result == "mismatch":
-            print("\n*** MISMATCH: the chip's flash differs from", a.file, "***")
-            print("Redo the backup (delete backup_parts/ and stock-backup.bin) before flashing anything.")
+            print(f"\n*** MISMATCH: the chip's flash differs from {os.path.relpath(image, ROOT)} ***")
+            print(f"If this was a fresh backup, delete devices/{a.device}/backup-parts/ and "
+                  "stock-backup.bin and take it again before flashing.")
             sys.exit(1)
-        print("\nCould not connect. Repeat the grounded power-up; I'm listening again.")
+        print("\nCould not connect. Repeat the grounded power-up; listening again.")
 
 
 if __name__ == "__main__":

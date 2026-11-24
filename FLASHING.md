@@ -95,6 +95,18 @@ Let go of `IO0`, power cycle, and watch it boot:
 
 `Ctrl-]` exits. You want to see `setup code from the factory partition`. If it says `no factory data; using the public test setup code`, the factory data did not go on and anyone in Bluetooth range can pair your purifier. Run `flash.sh` again.
 
+### If the connection keeps dropping
+
+Clip-on wires and cheap adapters drop out halfway through a 4 MB read. Use these instead of `flash.sh`:
+
+```bash
+./tools/flash_when_ready.py $PORT --backup-only   # backup in 256 KB chunks; rerun to resume
+./tools/verify_when_ready.py $PORT                # check the backup against the chip, read-only
+./tools/flash_when_ready.py $PORT                 # flash, using the backup already saved
+```
+
+Start each one before the grounded power-up. It watches the port and begins as soon as the chip enters its bootloader, and goes back to watching if the connection drops. `--now` skips the wait when the chip is already there. Lower `--baud` if it still fails. They use the same device folder as the other tools.
+
 ## 5. The device folder
 
 The tools keep everything for one purifier in `devices/<name>/`. The name defaults to `purifier`. With more than one, pass `-d bedroom` to every tool.
@@ -103,6 +115,7 @@ The tools keep everything for one purifier in `devices/<name>/`. The name defaul
 devices/purifier/
   fctry.bin            goes on the chip. No readable secret in it.
   stock-backup.bin     the original firmware
+  backup-parts/        chunks from flash_when_ready.py, safe to delete once the backup is verified
   boot-log.txt         serial log
   secrets/
     qrcode.png         Matter setup code
