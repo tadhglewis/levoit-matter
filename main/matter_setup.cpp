@@ -7,6 +7,7 @@
 
 #include <esp_log.h>
 #include <esp_matter.h>
+#include <esp_timer.h>
 #include <sdkconfig.h>
 
 #include <app-common/zap-generated/ids/Attributes.h>
@@ -52,6 +53,8 @@ bool pushing = false;
 constexpr uint32_t NO_ATTRIBUTE = 0xFFFFFFFF;
 uint32_t fan_written_attribute = NO_ATTRIBUTE;
 uint8_t fan_written_value = 0;
+constexpr int64_t AUTO_FOLLOW_UP_US = 1500 * 1000;
+int64_t auto_written_us = -AUTO_FOLLOW_UP_US;
 std::atomic<bool> network_ready{false};
 
 void post(RequestKind kind, uint8_t value = 0) {
@@ -89,12 +92,20 @@ public:
       return;
     case FanControl::FanModeEnum::kAuto:
     case FanControl::FanModeEnum::kSmart:
+      auto_written_us = esp_timer_get_time();
       post(RequestKind::FAN_AUTO);
       return;
     default:
       break;
     }
     if (written == FanControl::Attributes::FanMode::Id) {
+      bool turn_on_only = state.mode == FanControl::FanModeEnum::kHigh ||
+                          state.mode == FanControl::FanModeEnum::kOn;
+      if (turn_on_only && esp_timer_get_time() - auto_written_us < AUTO_FOLLOW_UP_US) {
+        ESP_LOGI(TAG, "ignoring the turn-on write that follows Auto");
+        post(RequestKind::FAN_AUTO);
+        return;
+      }
       if (state.mode == FanControl::FanModeEnum::kLow)
         post(RequestKind::FAN_LEVEL, 1);
       else if (state.mode == FanControl::FanModeEnum::kMedium)
