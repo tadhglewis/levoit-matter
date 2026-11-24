@@ -37,6 +37,7 @@ Not exposed: timer, auto-mode profiles, room size, the 200S night light, the 600
 
 - Sleep shows as Low speed with the Sleep switch on. Picking Low again does not leave Sleep. Use the switch or another speed.
 - The three switches show as outlet-style tiles. That is what Apple gives you.
+- Air quality never shows "Excellent" in Apple Home. Home's scale is Excellent, Good, Fair, Inferior, Poor. Matter's best value is "Good", and Home shows it as Good, one step below its top. The PM2.5 number is unaffected.
 - Test vendor ID. Apple shows an "uncertified accessory" prompt once. Tap through it.
 - No Matter OTA. Apple will not serve updates to uncertified devices, so updates are pushed over HTTP.
 - Free memory during Bluetooth pairing on the stock chip is unmeasured. It may not fit.
