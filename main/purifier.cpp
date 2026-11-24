@@ -24,6 +24,7 @@ constexpr const char *NVS_USED_CADR = "used_cadr";
 constexpr const char *NVS_RUNTIME = "runtime_min";
 constexpr uint32_t SAVE_EVERY_MINUTES = 30;
 constexpr uint32_t REPUBLISH_WINDOW_MS = 3000;
+constexpr uint32_t SETTLE_WINDOW_MS = 600;
 
 #if CONFIG_LEVOIT_MODEL_CORE200S
 const ModelSpec &model = CORE_200S;
@@ -48,6 +49,7 @@ MatterView last_view;
 bool have_view = false;
 
 uint32_t republish_started_ms = 0;
+uint32_t republish_window_ms = REPUBLISH_WINDOW_MS;
 bool republish_active = false;
 uint32_t last_minute_ms = 0;
 uint32_t saved_runtime = 0;
@@ -101,6 +103,7 @@ void apply_plan(const Plan &plan, uint32_t now_ms) {
     link_send(plan.commands[i]);
   holdoff.expect(plan, now_ms);
   republish_started_ms = now_ms;
+  republish_window_ms = plan.count > 0 ? REPUBLISH_WINDOW_MS : SETTLE_WINDOW_MS;
   republish_active = true;
 }
 
@@ -236,7 +239,7 @@ void on_poll(uint32_t now_ms) {
     callbacks.factory_reset();
   }
 
-  if (republish_active && now_ms - republish_started_ms > REPUBLISH_WINDOW_MS) {
+  if (republish_active && now_ms - republish_started_ms > republish_window_ms) {
     republish_active = false;
     publish(now_ms, true);
   }

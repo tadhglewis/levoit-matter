@@ -169,6 +169,11 @@ void apply_view(const MatterView &view) {
           chip::app::DataModel::MakeNullable<uint8_t>(view.speed_current));
       break;
     }
+    static uint8_t reported_percent = 0xFF;
+    if (view.percent_setting != reported_percent) {
+      reported_percent = view.percent_setting;
+      ESP_LOGI(TAG, "fan report percent=%u", view.percent_setting);
+    }
     if (view.current_valid) {
       fan->SetPercentCurrent(view.percent_current);
       fan->SetSpeedCurrent(view.speed_current);
