@@ -184,9 +184,9 @@ The purifier does not know how old its filter is. Stock firmware kept that count
 
 ## 8. Factory reset
 
-Hold the On/Off button for 15 seconds, the same hold Levoit's manual gives for restoring defaults. A few seconds in, the Wi-Fi light changes to show the hold has registered. Keep holding. The purifier clears Matter pairing and Wi-Fi and reboots into pairing mode. Letting go early cancels it.
+Hold the Wi-Fi button for 15 seconds. A few seconds in, the Wi-Fi light changes to show the hold has registered. Keep holding. The purifier clears Matter pairing and Wi-Fi and reboots into pairing mode. Letting go early cancels it.
 
-This has been confirmed on a Core 300S. Other models may not report the button hold, in which case removing the purifier from its controller is the way to reset it.
+This has been confirmed on a Core 300S whose Wi-Fi symbol is a touch button. Levoit's manual describes an older panel where Wi-Fi is only an indicator and the hold is on the On/Off button, which is untested here. Other models may not report the button hold, in which case removing the purifier from its controller is the way to reset it.
 
 Removing the purifier from the last controller does the same thing.
 
@@ -209,7 +209,7 @@ Do these with the case still open and the serial cable on. Save the whole log fr
 | 4 | `no ack for command 013140` every five seconds, and nothing else | The purifier does not answer status requests. Survivable: state then only refreshes when something changes. |
 | 5 | `filter degradation direction=1` | Correct. 0 means the filter will read backwards. |
 | 6 | The first status frame, logged in hex | On the 300S and 400S, byte 17 is an error field nobody has decoded. Note its value. |
-| 7 | The reset hold | Hold On/Off for 15 seconds. Test it before closing the case. |
+| 7 | The reset hold | Hold the Wi-Fi button for 15 seconds. Test it before closing the case. |
 
 ## Bench testing without the purifier
 
