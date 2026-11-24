@@ -10,3 +10,4 @@ components/levoit/host_test/build/
 build.log
 factory/
 __pycache__/
+dist/
