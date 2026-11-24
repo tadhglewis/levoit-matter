@@ -28,4 +28,16 @@ menu "Levoit purifier"
         help
             The Core 200S uses 17. The Core 200S-P (hardware version 2.0) uses 16.
 
+    config LEVOIT_DISPLAY_SWITCH
+        bool "Expose the display as a switch"
+        default y
+        help
+            Apple Home shows it as an unnamed outlet tile. Turn off to leave it out.
+
+    config LEVOIT_CHILD_LOCK_SWITCH
+        bool "Expose child lock as a switch"
+        default y
+        help
+            Apple Home shows it as an unnamed outlet tile. Turn off to leave it out.
+
 endmenu

@@ -7,6 +7,7 @@
 
 #include <esp_log.h>
 #include <esp_matter.h>
+#include <sdkconfig.h>
 
 #include <app-common/zap-generated/ids/Attributes.h>
 #include <app-common/zap-generated/ids/Clusters.h>
@@ -120,6 +121,8 @@ void attach_delegates() {
 }
 
 void report_switch(uint16_t endpoint, bool on) {
+  if (endpoint == 0)
+    return;
   esp_matter_attr_val_t value = esp_matter_bool(on);
   esp_matter::attribute::report(endpoint, OnOff::Id, OnOff::Attributes::OnOff::Id,
                                 &value);
@@ -196,6 +199,8 @@ esp_err_t attribute_callback(esp_matter::attribute::callback_type_t type,
   if (!levoit::purifier_ready())
     return ESP_OK;
   uint8_t on = value->val.b ? 1 : 0;
+  if (endpoint_id == 0)
+    return ESP_OK;
   if (endpoint_id == sleep_endpoint)
     post(RequestKind::SLEEP, on);
   else if (endpoint_id == display_endpoint)
@@ -368,6 +373,7 @@ void print_onboarding_codes(bool factory) {
 
 esp_err_t matter_setup_start() {
   bool factory_setup_code = commissionable_data_install();
+  device_info_install();
 
   esp_matter::node::config_t node_config;
   esp_matter::node_t *node =
@@ -381,10 +387,18 @@ esp_err_t matter_setup_start() {
       !create_air_quality_endpoint(node))
     return ESP_FAIL;
   sleep_endpoint = create_switch_endpoint(node);
-  display_endpoint = create_switch_endpoint(node);
-  child_lock_endpoint = create_switch_endpoint(node);
-  if (sleep_endpoint == 0 || display_endpoint == 0 || child_lock_endpoint == 0)
+  if (sleep_endpoint == 0)
     return ESP_FAIL;
+#if CONFIG_LEVOIT_DISPLAY_SWITCH
+  display_endpoint = create_switch_endpoint(node);
+  if (display_endpoint == 0)
+    return ESP_FAIL;
+#endif
+#if CONFIG_LEVOIT_CHILD_LOCK_SWITCH
+  child_lock_endpoint = create_switch_endpoint(node);
+  if (child_lock_endpoint == 0)
+    return ESP_FAIL;
+#endif
   ESP_LOGI(TAG, "endpoints: purifier=%u air_quality=%u sleep=%u display=%u child_lock=%u",
            purifier_endpoint, air_quality_endpoint, sleep_endpoint,
            display_endpoint, child_lock_endpoint);
@@ -392,7 +406,6 @@ esp_err_t matter_setup_start() {
   esp_err_t err = esp_matter::start(event_callback);
   if (err != ESP_OK)
     return err;
-  device_info_install();
 
   CHIP_ERROR scheduled = chip::DeviceLayer::PlatformMgr().ScheduleWork([](intptr_t) {
     attach_delegates();
