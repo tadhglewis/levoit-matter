@@ -40,15 +40,9 @@ Unplug the purifier from the wall and leave it unplugged the whole time the case
 | `+3V3` | 3.3 V |
 | `IO0` | GND, only while powering on |
 
-3. Hold `IO0` to ground, plug the adapter into USB, let go of `IO0`. The chip is now in its bootloader.
-4. Find the port.
+3. Leave `IO0` loose for now. The tools tell you when to ground it.
 
-```bash
-ls /dev/cu.usbserial-* /dev/cu.wchusbserial-*
-export PORT=/dev/cu.usbserial-XXXX
-```
-
-Every flashing command needs the bootloader. If one cannot connect, do step 3 again.
+The tools find the adapter on their own when it is the only USB serial device plugged in. If they find more than one, they list them; pass the right one as the first argument.
 
 ## 3. Build
 
@@ -77,35 +71,25 @@ Make this purifier's setup code and update token. Once per purifier.
 ./tools/factory.sh
 ```
 
-With the chip in its bootloader:
+Then start the flash, and only then power the chip up with `IO0` held to ground:
 
 ```bash
-./tools/flash.sh $PORT
+./tools/flash.sh
 ```
 
-The first run only backs up the stock firmware. It also reports the flash size. If that is not 4 MB, stop.
+It waits for the bootloader, then reads the stock firmware in 16 chunks, about seven minutes in all. Each chunk is kept, so if the connection drops, do the grounded power-up again and it carries on where it stopped. When the backup is whole it asks for one more grounded power-up and writes the firmware.
 
-Put the chip back in its bootloader and run the same command again. This time it writes the firmware.
+To check the backup against the chip before anything is written, run `./tools/flash.sh --backup-only`, then `./tools/verify_when_ready.py`. Neither writes to the chip.
 
 Let go of `IO0`, power cycle, and watch it boot:
 
 ```bash
-./tools/monitor.sh $PORT
+./tools/monitor.sh
 ```
 
 `Ctrl-]` exits. You want to see `setup code from the factory partition`. If it says `no factory data; using the public test setup code`, the factory data did not go on and anyone in Bluetooth range can pair your purifier. Run `flash.sh` again.
 
-### If the connection keeps dropping
-
-Clip-on wires and cheap adapters drop out halfway through a 4 MB read. Use these instead of `flash.sh`:
-
-```bash
-./tools/flash_when_ready.py $PORT --backup-only   # backup in 256 KB chunks; rerun to resume
-./tools/verify_when_ready.py $PORT                # check the backup against the chip, read-only
-./tools/flash_when_ready.py $PORT                 # flash, using the backup already saved
-```
-
-Start each one before the grounded power-up. It watches the port and begins as soon as the chip enters its bootloader, and goes back to watching if the connection drops. `--now` skips the wait when the chip is already there. Lower `--baud` if it still fails. They use the same device folder as the other tools.
+If it still fails, lower the speed with `--baud 57600`. `--now` skips the wait when the chip is already in its bootloader.
 
 ## 5. The device folder
 
@@ -115,7 +99,7 @@ The tools keep everything for one purifier in `devices/<name>/`. The name defaul
 devices/purifier/
   fctry.bin            goes on the chip. No readable secret in it.
   stock-backup.bin     the original firmware
-  backup-parts/        chunks from flash_when_ready.py, safe to delete once the backup is verified
+  backup-parts/        chunks of the backup, safe to delete once it is verified
   boot-log.txt         serial log
   secrets/
     qrcode.png         Matter setup code
@@ -139,8 +123,10 @@ Print the QR code and stick it on the purifier. The code never changes, across u
 Then set the filter life you noted from VeSync. The firmware cannot know how old your filter is and starts at 100%.
 
 ```bash
-./tools/filter.sh <ip> 60
+./tools/filter.sh 192.168.1.50 60
 ```
+
+Use your purifier's address, from your router's list of devices. The tools remember it in the device folder, so the other tools need no address after this. Pass one again if it changes.
 
 ### Rename the switches
 
@@ -162,7 +148,7 @@ While you are there, rename the purifier itself from "Matter Accessory". Siri us
 
 ```bash
 idf.py build
-./tools/ota.sh <ip>
+./tools/ota.sh
 ```
 
 The purifier reboots into the new image. If Wi-Fi, the update server and the link to the purifier's controller are not all up within two minutes, it goes back to the old one.
@@ -172,7 +158,7 @@ Raise `PROJECT_VER_NUMBER` in `CMakeLists.txt` on every release. Apple Home only
 To change the update token, 12 to 64 characters, no spaces:
 
 ```bash
-./tools/ota.sh <ip> --set-token <new-token>
+./tools/ota.sh --set-token <new-token>
 ```
 
 A factory reset puts the original token back.
@@ -186,16 +172,18 @@ Filter reset: hold Sleep for 3 seconds, until the filter light goes off ([manual
 If the purifier is beyond help, erase it and start again:
 
 ```bash
-.venv/bin/esptool --port $PORT erase-flash
-./tools/flash.sh $PORT
+.venv/bin/esptool erase-flash
+./tools/flash.sh
 ```
 
 To go back to stock:
 
 ```bash
-.venv/bin/esptool --port $PORT erase-flash
-.venv/bin/esptool --port $PORT write-flash 0x0 devices/purifier/stock-backup.bin
+.venv/bin/esptool erase-flash
+.venv/bin/esptool write-flash 0x0 devices/purifier/stock-backup.bin
 ```
+
+Both need the chip in its bootloader, and esptool finds the port itself.
 
 ## Flashing from another computer
 
@@ -209,9 +197,9 @@ The bundle holds nothing specific to one purifier, so it is safe to hand to some
 
 ## Debugging
 
-`./tools/log.sh <ip>` prints the last 6 KB of the purifier's log over Wi-Fi. `./tools/watch.sh <ip>` follows it. Both need the purifier paired. A reboot clears the log.
+`./tools/log.sh` prints the last 6 KB of the purifier's log over Wi-Fi. `./tools/watch.sh` follows it. Both need the purifier paired. A reboot clears the log.
 
-For a model or controller the firmware does not understand, build with `CONFIG_LEVOIT_LOG_FRAMES=y`. The log then has one hex line for every frame in both directions. Follow it with `./tools/watch.sh <ip> 'link: (rx|tx)'`. Turn it off again afterwards, because it fills the log.
+For a model or controller the firmware does not understand, build with `CONFIG_LEVOIT_LOG_FRAMES=y`. The log then has one hex line for every frame in both directions. Follow it with `./tools/watch.sh 'link: (rx|tx)'`. Turn it off again afterwards, because it fills the log.
 
 `tools/mcu_sim.py` plays the purifier's controller on a serial port, for testing on a bare ESP32 dev board. Adapter TX to GPIO16, RX to GPIO17, grounds together.
 

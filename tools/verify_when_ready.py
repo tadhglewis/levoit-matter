@@ -5,14 +5,17 @@ Read-only: nothing is written to the chip. Start it before the grounded
 power-up. It listens on the port and runs esptool verify-flash the moment the
 chip enters download mode. If the connection drops it listens again.
 
-    ./tools/verify_when_ready.py [-d device] <port>
-    ./tools/verify_when_ready.py <port> --now        # chip already in download mode
-    ./tools/verify_when_ready.py <port> --file other.bin
+    ./tools/verify_when_ready.py [-d device] [port]
+    ./tools/verify_when_ready.py --now        # chip already in download mode
+    ./tools/verify_when_ready.py --file other.bin
+
+The port is found automatically when one USB serial adapter is plugged in.
 
 Compares against devices/<device>/stock-backup.bin unless --file is given.
 Useful straight after a backup, before anything is flashed.
 """
 import argparse
+import glob
 import os
 import subprocess
 import sys
@@ -44,6 +47,22 @@ import serial  # noqa: E402
 MARKER = b"waiting for download"
 FLASH_SIZE = 0x400000
 ESPTOOL = os.environ.get("ESPTOOL") or os.path.join(VENV, "bin", "esptool")
+
+
+PORT_PATTERNS = ["/dev/cu.usbserial*", "/dev/cu.wchusbserial*", "/dev/cu.SLAB_USBtoUART*", "/dev/cu.PL2303*",
+                 "/dev/cu.usbmodem*", "/dev/ttyUSB*", "/dev/ttyACM*"]
+
+
+def pick_port(given):
+    if given:
+        return given
+    ports = sorted({p for pattern in PORT_PATTERNS for p in glob.glob(pattern)})
+    if len(ports) == 1:
+        print(f"Using {ports[0]}")
+        return ports[0]
+    if not ports:
+        sys.exit("No USB serial adapter found. Plug it in, or give the port.")
+    sys.exit("More than one serial port. Give one of:\n  " + "\n  ".join(ports))
 
 
 def wait_for_download(port):
@@ -82,14 +101,14 @@ def verify(args):
 def main():
     ap = argparse.ArgumentParser(description="Verify the chip's flash against the stock backup.")
     ap.add_argument("-d", "--device", default="purifier", help="device folder under devices/ (default: purifier)")
-    ap.add_argument("port", nargs="?", default=os.environ.get("PORT"), help="serial port, or set PORT")
+    ap.add_argument("port", nargs="?", default=os.environ.get("PORT"),
+                    help="serial port; found automatically when one USB serial adapter is plugged in")
     ap.add_argument("--baud", default="115200")
     ap.add_argument("--file", help="image to compare against (default: the device's stock-backup.bin)")
     ap.add_argument("--now", action="store_true", help="the chip is already in download mode")
     a = ap.parse_args()
 
-    if not a.port:
-        ap.error("give the serial port, or set PORT")
+    a.port = pick_port(a.port)
     if not a.device or not all(c.isalnum() or c in "-_" for c in a.device):
         ap.error("device name may only use letters, digits, - and _")
 

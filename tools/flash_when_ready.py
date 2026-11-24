@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
-"""Back up the stock flash and flash the firmware, over a flaky serial connection.
+"""Back up the stock flash and flash the firmware. tools/flash.sh runs this.
 
-Like flash.sh, but it listens on the port and starts the moment the chip
-enters download mode, and it reads the backup in 256 KB chunks. Saved chunks
-are kept, so a dropped connection costs one chunk and the next run resumes.
+It listens on the port and starts the moment the chip enters download mode,
+and it reads the backup in 256 KB chunks. Saved chunks are kept, so a dropped
+connection costs one chunk and the next run resumes.
 
-    ./tools/flash_when_ready.py [-d device] <port>
-    ./tools/flash_when_ready.py <port> --backup-only
-    ./tools/flash_when_ready.py <port> --now        # chip already in download mode
+    ./tools/flash.sh [-d device] [port]
+    ./tools/flash.sh --backup-only
+    ./tools/flash.sh --now        # chip already in download mode
+
+The port is found automatically when one USB serial adapter is plugged in.
 
 The backup goes to devices/<device>/stock-backup.bin. The flash writes the
 firmware from build/ (or firmware/ in a bundle) and devices/<device>/fctry.bin.
 """
 import argparse
+import glob
 import os
 import subprocess
 import sys
@@ -64,6 +67,22 @@ def firmware_files(device_dir):
         ("0x1A000", os.path.join(device_dir, "fctry.bin")),
         ("0x20000", os.path.join(firmware, "levoit_matter.bin")),
     ]
+
+
+PORT_PATTERNS = ["/dev/cu.usbserial*", "/dev/cu.wchusbserial*", "/dev/cu.SLAB_USBtoUART*", "/dev/cu.PL2303*",
+                 "/dev/cu.usbmodem*", "/dev/ttyUSB*", "/dev/ttyACM*"]
+
+
+def pick_port(given):
+    if given:
+        return given
+    ports = sorted({p for pattern in PORT_PATTERNS for p in glob.glob(pattern)})
+    if len(ports) == 1:
+        print(f"Using {ports[0]}")
+        return ports[0]
+    if not ports:
+        sys.exit("No USB serial adapter found. Plug it in, or give the port.")
+    sys.exit("More than one serial port. Give one of:\n  " + "\n  ".join(ports))
 
 
 def wait_for_download(port):
@@ -146,14 +165,14 @@ class Backup:
 def main():
     ap = argparse.ArgumentParser(description="Back up and flash over a flaky serial connection.")
     ap.add_argument("-d", "--device", default="purifier", help="device folder under devices/ (default: purifier)")
-    ap.add_argument("port", nargs="?", default=os.environ.get("PORT"), help="serial port, or set PORT")
+    ap.add_argument("port", nargs="?", default=os.environ.get("PORT"),
+                    help="serial port; found automatically when one USB serial adapter is plugged in")
     ap.add_argument("--baud", default="115200", help="default 115200; higher is faster and flakier")
     ap.add_argument("--now", action="store_true", help="the chip is already in download mode")
     ap.add_argument("--backup-only", action="store_true", help="back up the stock flash, then stop")
     a = ap.parse_args()
 
-    if not a.port:
-        ap.error("give the serial port, or set PORT")
+    a.port = pick_port(a.port)
     if not a.device or not all(c.isalnum() or c in "-_" for c in a.device):
         ap.error("device name may only use letters, digits, - and _")
 

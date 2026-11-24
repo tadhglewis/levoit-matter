@@ -34,3 +34,43 @@ read_token() {
     return 1
   fi
 }
+
+serial_ports() {
+  for p in /dev/cu.usbserial* /dev/cu.wchusbserial* /dev/cu.SLAB_USBtoUART* /dev/cu.PL2303* \
+           /dev/cu.usbmodem* /dev/ttyUSB* /dev/ttyACM*; do
+    [ -e "$p" ] && echo "$p"
+  done
+  return 0
+}
+
+pick_port() {
+  if [ -n "$1" ]; then echo "$1"; return; fi
+  if [ -n "$PORT" ]; then echo "$PORT"; return; fi
+  ports=$(serial_ports)
+  count=$(printf '%s' "$ports" | grep -c . || true)
+  if [ "$count" = 1 ]; then echo "$ports"; return; fi
+  if [ "$count" = 0 ]; then
+    echo "no USB serial adapter found. Plug it in, or give the port." >&2
+  else
+    echo "more than one serial port. Give one of:" >&2
+    printf '%s\n' "$ports" | sed 's/^/  /' >&2
+  fi
+  return 1
+}
+
+is_host() {
+  case "$1" in *.bin) return 1 ;; esac
+  printf '%s' "$1" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$|^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$'
+}
+
+saved_host() {
+  if [ -n "$LEVOIT_HOST" ]; then echo "$LEVOIT_HOST"; return; fi
+  if [ -s "$DEVICE_DIR/host" ]; then cat "$DEVICE_DIR/host"; return; fi
+  echo "no address saved for '$DEVICE'. Give it once, for example: $0 192.168.1.50" >&2
+  return 1
+}
+
+remember_host() {
+  mkdir -p "$DEVICE_DIR"
+  printf '%s\n' "$1" > "$DEVICE_DIR/host"
+}

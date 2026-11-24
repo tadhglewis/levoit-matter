@@ -42,13 +42,15 @@ Removing the purifier from Home also puts it back in pairing mode.
 
 ## From your computer
 
-| To                       | Run                                     |
-| ------------------------ | --------------------------------------- |
-| Update the firmware, OTA | `./tools/ota.sh <ip>`                   |
-| Set filter life          | `./tools/filter.sh <ip> 60`             |
-| Read the log             | `./tools/log.sh <ip>`                   |
-| Follow the log           | `./tools/watch.sh <ip>`                 |
-| Change the update token  | `./tools/ota.sh <ip> --set-token <new>` |
+| To                       | Run                                  |
+| ------------------------ | ------------------------------------ |
+| Update the firmware, OTA | `./tools/ota.sh`                     |
+| Set filter life          | `./tools/filter.sh 60`               |
+| Read the log             | `./tools/log.sh`                     |
+| Follow the log           | `./tools/watch.sh`                   |
+| Change the update token  | `./tools/ota.sh --set-token <new>`   |
+
+The first time, put the purifier's IP before the other arguments, for example `./tools/log.sh 192.168.1.50`. The tools remember it.
 
 OTA updates go over your own network, to an endpoint on the purifier that needs its token. Nothing is fetched from the internet. A new image has to come up with Wi-Fi and the purifier's controller both working, or the bootloader goes back to the old one.
 
@@ -60,8 +62,7 @@ You open the case, solder five wires and flash over serial. Once.
 cp sdkconfig.local.example sdkconfig.local   # pick the model
 idf.py build
 ./tools/factory.sh                           # this purifier's setup code and update token
-./tools/flash.sh /dev/cu.usbserial-XXXX      # first run backs up the stock firmware
-./tools/flash.sh /dev/cu.usbserial-XXXX      # second run flashes
+./tools/flash.sh                             # backs up the stock firmware, then flashes
 ```
 
 Scan `devices/purifier/secrets/qrcode.png` in Apple Home.
@@ -110,7 +111,7 @@ Ours:
 
 ## Contributing
 
-Only the Core 300S has been run. If you flash a 200S, 400S or 600S, open an issue with the output of `./tools/log.sh <ip>` whether it worked or not. The first status frame is in there, and that is what a model fix needs. A build with `CONFIG_LEVOIT_LOG_FRAMES=y` logs every frame, which is better still.
+Only the Core 300S has been run. If you flash a 200S, 400S or 600S, open an issue with the output of `./tools/log.sh` whether it worked or not. The first status frame is in there, and that is what a model fix needs. A build with `CONFIG_LEVOIT_LOG_FRAMES=y` logs every frame, which is better still.
 
 `./components/levoit/host_test/run.sh` has to pass. A change to the protocol code comes with a captured frame in the tests.
 

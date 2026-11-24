@@ -1,17 +1,18 @@
 #!/bin/sh
 set -e
 usage() {
-  echo "usage: $0 [-d device] <host> [filter]" >&2
+  echo "usage: $0 [-d device] [host] [filter]" >&2
   echo "Follows the purifier's log over Wi-Fi. Stop with Ctrl-C." >&2
   echo "The optional filter is a regular expression, for example 'link|matter|purifier'." >&2
+  echo "The host is remembered after the first use." >&2
   exit 1
 }
 . "$(dirname "$0")/common.sh"
-HOST="$1"
-[ -n "$HOST" ] || usage
+if is_host "$1"; then HOST="$1"; shift; else HOST=$(saved_host) || exit 1; fi
 TOKEN=$(read_token)
+remember_host "$HOST"
 export LEVOIT_WATCH_TOKEN="$TOKEN"
-exec python3 - "$HOST" "${2:-}" <<'PY'
+exec python3 - "$HOST" "${1:-}" <<'PY'
 import os, re, sys, time, urllib.request
 
 host, pattern = sys.argv[1], sys.argv[2]
