@@ -114,7 +114,7 @@ Holding Sleep for three seconds clears it, as on stock. `tools/filter.sh` sets i
 - With no factory data the firmware uses the public Matter test code and logs a warning.
 - The attestation certificate is the SDK's test one. A real one needs a vendor ID. That is why Home says "uncertified".
 - Bluetooth is used for pairing and then shut down to free memory. It cannot restart without a reboot. So removing the purifier from its last controller triggers a full factory reset, which is the only way back to pairing mode.
-- The purifier's controller reports a held Wi-Fi button. Eleven seconds of holding after the first report, about fifteen from the press, triggers a factory reset.
+- The purifier's controller reports a held Wi-Fi button. Eleven seconds of holding after the first report, about fifteen from the press, triggers a factory reset. An earlier build could reset the moment the hold registered: the hold was timestamped a few milliseconds after the clock reading used to check it, and the unsigned subtraction wrapped. There is a test for it now.
 - Identify inverts the Wi-Fi light.
 
 ## Updates

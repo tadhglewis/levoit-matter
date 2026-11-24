@@ -404,6 +404,9 @@ static void test_hold_reset() {
   CHECK(!hold.holding() && !hold.due(42000));
   hold.feed(0x09, 40000);
   CHECK(!hold.holding());
+  hold.feed(HoldReset::STARTED, 50005);
+  CHECK(!hold.due(50000));
+  CHECK(!hold.due(61004) && hold.due(61005));
 }
 
 static void test_filter() {

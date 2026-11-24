@@ -183,6 +183,7 @@ void link_task(void *) {
       while (parser.next(frame))
         handle_frame(frame);
     }
+    now = now_ms();
     bool query_due = !first_query_sent || (now - last_status_ms > STATUS_QUERY_MS &&
                                            now - last_query_ms > STATUS_QUERY_MS);
     if (model->status_request != 0 && queue_count == 0 && query_due) {

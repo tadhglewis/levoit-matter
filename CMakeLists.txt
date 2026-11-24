@@ -5,8 +5,8 @@ if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/sdkconfig.local")
     list(APPEND SDKCONFIG_DEFAULTS "sdkconfig.local")
 endif()
 
-set(PROJECT_VER "0.3.0")
-set(PROJECT_VER_NUMBER 3)
+set(PROJECT_VER "0.4.0")
+set(PROJECT_VER_NUMBER 4)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(levoit_matter)

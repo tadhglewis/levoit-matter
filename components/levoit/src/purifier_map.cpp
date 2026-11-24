@@ -228,7 +228,7 @@ void Holdoff::expect(const Plan &plan, uint32_t now_ms) {
 void Holdoff::apply(PurifierState &state, uint32_t now_ms) {
   if (this->fields_ == 0)
     return;
-  if (now_ms - this->started_ms_ > WINDOW_MS) {
+  if (static_cast<int32_t>(now_ms - this->started_ms_) > static_cast<int32_t>(WINDOW_MS)) {
     this->fields_ = 0;
     return;
   }
@@ -274,7 +274,8 @@ void HoldReset::feed(uint8_t event, uint32_t now_ms) {
 }
 
 bool HoldReset::due(uint32_t now_ms) {
-  if (!this->holding_ || now_ms - this->started_ms_ < HOLD_MS)
+  if (!this->holding_ ||
+      static_cast<int32_t>(now_ms - this->started_ms_) < static_cast<int32_t>(HOLD_MS))
     return false;
   this->holding_ = false;
   return true;
