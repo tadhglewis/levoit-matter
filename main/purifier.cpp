@@ -175,6 +175,10 @@ void handle_request(const Request &request, uint32_t now_ms) {
     apply_plan(plan_sleep(current, request.value != 0), now_ms);
     break;
   case RequestKind::DISPLAY: {
+    if (!current.power || current.mode == Mode::SLEEP) {
+      publish(now_ms, true);
+      break;
+    }
     apply_plan(plan_display(current, request.value != 0), now_ms);
     break;
   }
