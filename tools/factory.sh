@@ -32,8 +32,19 @@ fi
 setting() { grep "^$1=" "$ROOT/sdkconfig.defaults" | cut -d= -f2; }
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
+PASSCODE=$("$VENV/bin/python" -c '
+import secrets
+invalid = {int(str(d) * 8) for d in range(10)} | {12345678, 87654321}
+while True:
+    code = secrets.randbelow(99999998) + 1
+    if code not in invalid:
+        print(code)
+        break
+')
+DISCRIMINATOR=$("$VENV/bin/python" -c 'import secrets; print(secrets.randbelow(4096))')
 (cd "$WORK" && "$VENV/bin/esp-matter-mfg-tool" \
   -v "$(setting CONFIG_DEVICE_VENDOR_ID)" -p "$(setting CONFIG_DEVICE_PRODUCT_ID)" \
+  --passcode "$PASSCODE" --discriminator "$DISCRIMINATOR" \
   -s "$SIZE" -dm 2 --no-bin --outdir out >"$WORK/log" 2>&1) || { cat "$WORK/log"; exit 1; }
 
 CSV=$(find "$WORK/out" -path '*/internal/partition.csv')
@@ -51,10 +62,11 @@ PY
 "$VENV/bin/python" -m esp_idf_nvs_partition_gen generate "$CSV" "$WORK/fctry.bin" "$SIZE" >"$WORK/log" 2>&1 || { cat "$WORK/log"; exit 1; }
 
 mkdir -p "$OUT"
+chmod 700 "$OUT"
 rm -f "$OUT/ota_token.current"
 cp "$WORK/fctry.bin" "$OUT/fctry.bin"
 cp "$DIR"/*-qrcode.png "$OUT/qrcode.png"
 cp "$DIR"/*-onb_codes.csv "$OUT/codes.csv"
 cp "$WORK/ota_token.txt" "$OUT/ota_token.txt"
-chmod 600 "$OUT/ota_token.txt" "$OUT/codes.csv"
+chmod 600 "$OUT"/*
 show
