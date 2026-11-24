@@ -182,13 +182,13 @@ A5  type  counter  length  00  checksum  cmd0 cmd1 cmd2  00  payload...
 |---|---|---|---|
 | Core 200S | `01 60 40` | 12 | tuct capture |
 | Core 300S | `01 30 40` or `01 B0 40` | 18 | mulcmu, tuct |
-| Core 300S, controller 1.0.0 | `01 32 40` | 19 | Ours |
+| Core 300S, controller 1.0.0 | `01 32 40` | 19 | Ours, now in tuct |
 | Core 400S | `01 30 40` or `01 B0 40` | 18 | tuct |
 | Core 600S | `01 40 41` | 22 | tuct capture |
 
 ### What we found
 
-On a Core 300S whose controller reports version 1.0.0. None of it is in the sources above.
+On a Core 300S whose controller reports version 1.0.0. None of it was in the sources above. Most of it is now in tuct/levoit.
 
 **Status `01 32 40`.** The 18-byte layout with one byte inserted at offset 6.
 
@@ -220,7 +220,7 @@ We have not watched offset 9 rise in auto. The reading matches mulcmu's notes on
 
 **Version 1.0.0 is not "old".** tuct lists controller versions 2.0.7 and 2.0.11 as tested on the 300S, both on the 18-byte status. Ours reports 1.0.0 beside a stock ESP32 image from February 2025, on a UAE-region unit (LAP-C302S-WGC). So this is a different controller line, not an earlier one.
 
-The raw frames behind all of this, both directions, are in [tuct/levoit#140](https://github.com/tuct/levoit/pull/140), with a decoder for that driver. [#141](https://github.com/tuct/levoit/pull/141) adds the status request.
+The raw frames behind all of this, both directions, are in [`status_32_40.txt`](https://github.com/tuct/levoit/blob/main/devices/levoit-core300s/uart/status_32_40.txt) in tuct/levoit. The decoder ([#140](https://github.com/tuct/levoit/pull/140)) and the status request ([#141](https://github.com/tuct/levoit/pull/141)) are merged there. The panel filter reset ([#142](https://github.com/tuct/levoit/pull/142)), the On/Off hold ([#143](https://github.com/tuct/levoit/pull/143)) and plasma ([#144](https://github.com/tuct/levoit/pull/144)) are open.
 
 **Button hold, `01 02 D1`.** Sent when On/Off is held. The Wi-Fi symbol above it is a light; the manual lists no Wi-Fi button (page 4). Payload `02` when the hold registers, a few seconds in, and `03` on release. Stock firmware logs it as "netcfg is start".
 

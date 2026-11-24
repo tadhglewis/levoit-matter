@@ -118,4 +118,6 @@ Only the Core 300S has been run. If you flash a 200S, 400S or 600S, open an issu
 
 The serial protocol comes from [tuct/levoit](https://github.com/tuct/levoit) and [mulcmu/esphome-levoit-core300s](https://github.com/mulcmu/esphome-levoit-core300s). Their captures are the test vectors for the models we cannot test ourselves.
 
+What we found on a Core 300S with controller 1.0.0 went back to tuct/levoit: the 19-byte status and the status request are merged ([#140](https://github.com/tuct/levoit/pull/140), [#141](https://github.com/tuct/levoit/pull/141)).
+
 MIT. See [LICENSE](LICENSE).
