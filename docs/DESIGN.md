@@ -93,6 +93,121 @@ Everything model-specific is one row in `components/levoit/src/levoit_core.cpp`:
 
 Adding a Core model is a new row, a Kconfig entry and a recorded status frame in the tests. The Vital, Sprout and EverestAir families use a different frame format and would need their own decoder.
 
+## Purifier protocol
+
+The ESP32 and the purifier's controller talk over UART at 115200 8N1. On the Core 300S the ESP32 transmits on GPIO17 and receives on GPIO16.
+
+### Where this comes from
+
+| Source | What we took from it |
+|---|---|
+| [tuct/levoit](https://github.com/tuct/levoit), `LEVOIT_UART.md` and the driver source | Frame format, every command we send, the status layouts for the Core 200S, 400S and 600S, the airflow ratings, and the acknowledgement it sends |
+| [tuct/levoit device captures](https://github.com/tuct/levoit/tree/main/devices) | Recordings of stock firmware on a Core 200S and 600S. The test vectors for those models come from here. |
+| [mulcmu/esphome-levoit-core300s](https://github.com/mulcmu/esphome-levoit-core300s) | The byte-by-byte Core 300S status layout, including the two display bytes and the running speed, and the status request |
+| This project | The items under "Found on our hardware" below, from a Core 300S whose controller reports version 1.0.0 |
+
+### Frame
+
+```
+A5  type  counter  length  00  checksum  cmd0 cmd1 cmd2  00  payload...
+```
+
+- `type`: `22` is a message, `12` an acknowledgement, `52` a second kind of acknowledgement.
+- `length`: the number of bytes after the checksum.
+- `checksum`: `FF` minus the low byte of the sum of every other byte.
+- An acknowledgement repeats the command bytes and the counter of the message it answers.
+
+### Commands the firmware sends
+
+All from tuct/levoit.
+
+| Command | Payload | Does |
+|---|---|---|
+| `01 00 A0` | `00` or `01` | Power off or on |
+| `01 60 A2` | `01 01 <speed>` | Manual speed |
+| `01 E0 A5` | `00`, `01`, `02` | Mode: manual, sleep, auto |
+| `01 05 A1` | `00` or `64` | Display off or on |
+| `01 00 D1` | `00` or `01` | Child lock |
+| `01 E2 A5` | `00` or `01` | Filter light |
+| `01 29 A1` | six bytes | Wi-Fi light: off, solid, blinking |
+| `01 31 40` | none | Ask for status (Core 300S and 400S). `01 61 40` on the 200S. |
+
+### Status from the controller
+
+| Model | Command | Length | Source |
+|---|---|---|---|
+| Core 200S | `01 60 40` | 12 | tuct capture |
+| Core 300S | `01 30 40` or `01 B0 40` | 18 | mulcmu, tuct |
+| Core 300S, controller 1.0.0 | `01 32 40` | 19 | Found on our hardware |
+| Core 400S | `01 30 40` or `01 B0 40` | 18 | tuct |
+| Core 600S | `01 40 41` | 22 | tuct capture |
+
+### Found on our hardware
+
+None of this is in the sources above. It was read off a Core 300S over the firmware's own log.
+
+**Status `01 32 40`, 19 bytes.** The 18-byte layout with one byte inserted at offset 6.
+
+| Offset | Meaning | Values seen |
+|---|---|---|
+| 0 to 2 | Controller version: patch, minor, major | `00 00 01` |
+| 3 | Power | `00`, `01` |
+| 4 | Mode | `00` manual, `01` sleep, `02` auto |
+| 5 | Selected manual speed. Kept while off and in auto. | `01` to `03` |
+| 6 | Unknown, the inserted byte | `00` |
+| 7 | Display backlight now | `00`, `64` |
+| 8 | Display setting | `00` off, `01` on |
+| 9 | Running speed | Equals the speed in manual, `00` in auto with clean air, `FF` when off |
+| 10 | Unknown | `00` |
+| 11 | Air quality level, 1 best to 4 | `01` |
+| 12 to 13 | PM2.5, little endian | `01 00`, `05 00`, `07 00` |
+| 14 | Child lock | `00` |
+| 15 | Auto profile | `00` |
+| 16 to 17 | Room size for the auto profile | `00 00` |
+| 18 | Error | `00` |
+
+Offset 9 as "running speed" matches mulcmu's description of the same field in the 18-byte layout. We have not yet seen it rise in auto.
+
+**The two display bytes behave differently.** With the display set to off, touching any button lights the backlight for about three seconds. Offset 7 goes to `64` and back to `00`. Offset 8 stays `00`. The firmware reports offset 8.
+
+**This controller pushes status once a minute and on every change.** It does not send it several times a second, as the older captures show.
+
+**The status request is acknowledged with no payload** on this controller. On the older Core 300S in mulcmu's captures, and on the Core 200S in tuct's, the acknowledgement carries the status. So here the firmware has to wait for a push. One arrives shortly after any command, including the Wi-Fi light command sent at boot.
+
+**Button hold, `01 02 D1`.** Sent when the Wi-Fi button is held.
+
+| Payload | When |
+|---|---|
+| `02` | The hold registers, a few seconds after the press |
+| `03` | The button is released |
+
+A five-second hold produced `02` then `03` 0.7 seconds later. A longer one produced `02` then `03` 7.6 seconds later. The firmware resets to pairing mode when the button is still held five seconds after `02`. Whether a much longer hold produces further payloads is untested.
+
+**Acknowledgements.** The firmware answers every message with the form tuct's driver uses: type `12`, its own counter, byte 4 set to `FF`. This controller accepts it and does not repeat itself.
+
+### Seen in other people's captures
+
+Read from tuct's recordings, and not written down there as far as we found.
+
+- **Stock firmware acknowledges status with type `52`**, echoing the controller's counter, with a trailing `01`: `A5 52 00 04 00 62 01 60 40 01` on the 200S and the same shape on the 600S. The 200S and 600S rows use this form.
+- **The stock 200S firmware sends `01 61 40` at boot** and receives the status in the acknowledgement.
+
+### Apple Home's Matter behaviour
+
+Also observed, and worth knowing for anyone building a purifier.
+
+| What you do in Home | What Home sends |
+|---|---|
+| Tap Auto while off | FanMode Auto, then FanMode High 40 ms later |
+| Tap Manual while off | FanMode High |
+| Drag the slider | A stream of PercentSetting writes |
+| Tap Off | FanMode Off |
+
+- Home treats High as "turn on". The firmware ignores a High that follows Auto within 1.5 seconds, and otherwise resumes the last manual speed.
+- Home does not read names for the parts of a device from semantic tag labels. Fixed Label and User Label are reported not to work either.
+- Home shows Matter's best air quality value, Good, one step below its own Excellent.
+- The default accessory name is always "Matter Accessory" for an uncertified device.
+
 ## Filter life
 
 The purifier does not report filter life. The firmware counts airflow: each minute it adds the model's airflow rating scaled by the current speed, with Sleep counted as 63 percent of speed 1. Life is the share of six months at full speed that remains. The count is saved every 30 minutes and when the purifier turns off. Resetting the filter in Home, or with the purifier's own filter button where the model reports it, clears the count.
