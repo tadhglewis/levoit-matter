@@ -57,6 +57,7 @@ constexpr uint32_t NO_ATTRIBUTE = 0xFFFFFFFF;
 uint32_t fan_written_attribute = NO_ATTRIBUTE;
 uint8_t fan_written_value = 0;
 std::atomic<bool> network_ready{false};
+std::atomic<bool> display_dark{false};
 
 void post(RequestKind kind, uint8_t value = 0) {
   if (!levoit::purifier_post({kind, value}))
@@ -223,6 +224,7 @@ void apply_view(const MatterView &view) {
     esp_matter::data_model::provider::get_instance().ReportAttributeChanged(
         chip::app::AttributePathParams(0, BasicInformation::Id,
                                        BasicInformation::Attributes::LocalConfigDisabled::Id));
+  display_dark.store(view.sleep || view.fan_mode == levoit::FanModeView::OFF);
   report_switch(sleep_endpoint, view.sleep);
   report_switch(display_endpoint, view.display);
   report_switch(child_lock_endpoint, view.child_lock);
@@ -259,6 +261,10 @@ esp_err_t attribute_callback(esp_matter::attribute::callback_type_t type,
     ESP_LOGI(TAG, "power write %u", on);
     post(RequestKind::POWER, on);
     return ESP_OK;
+  }
+  if (endpoint_id == display_endpoint && on && display_dark.load()) {
+    ESP_LOGI(TAG, "display on refused: the purifier is asleep or off");
+    return ESP_ERR_INVALID_STATE;
   }
   if (endpoint_id == sleep_endpoint)
     post(RequestKind::SLEEP, on);
