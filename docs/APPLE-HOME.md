@@ -137,7 +137,7 @@ From [Apple's Matter OTA User Guide](https://developer.apple.com/accessories/App
 - Apple says to allow 24 hours for the update to appear and 48 for it to apply.
 - Developers report test-ledger updates showing up in Google Home and Home Assistant and never in Apple Home, [forum 812302](https://developer.apple.com/forums/thread/812302).
 
-So this firmware has its own HTTP update.
+So `tools/matter-ota.sh` sends Matter updates itself, as a second controller beside Home. Home stays paired through an update and shows the new version afterwards.
 
 ## What HomeKit would fix
 

@@ -123,6 +123,7 @@ esp_err_t fail(httpd_req_t *request, httpd_err_code_t code, const char *message)
   return ESP_FAIL;
 }
 
+#if CONFIG_LEVOIT_HTTP_OTA
 esp_err_t handle_upload(httpd_req_t *request) {
   if (!authorized(request))
     return fail(request, HTTPD_401_UNAUTHORIZED, "bad token");
@@ -184,6 +185,7 @@ esp_err_t handle_upload(httpd_req_t *request) {
   esp_restart();
   return ESP_OK;
 }
+#endif
 
 esp_err_t handle_set_token(httpd_req_t *request) {
   if (!authorized(request))
@@ -265,7 +267,7 @@ esp_err_t handle_log(httpd_req_t *request) {
 void health_task(void *) {
   uint32_t waited = 0;
   while (waited < HEALTH_DEADLINE_MS) {
-    if (matter_network_ready() && ota_server_running() &&
+    if (matter_network_ready() && (ota_server_running() || !credentials.present) &&
         levoit::purifier_link_alive()) {
       esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
       ESP_LOGI(TAG, "new image confirmed: %s", esp_err_to_name(err));
@@ -290,7 +292,7 @@ void ota_server_start() {
     return;
   load_credentials();
   if (!credentials.present) {
-    ESP_LOGW(TAG, "no update token in the factory data; updates over Wi-Fi are off");
+    ESP_LOGW(TAG, "no update token in the factory data; the log and filter endpoints are off");
     return;
   }
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -302,10 +304,6 @@ void ota_server_start() {
     ESP_LOGE(TAG, "http server failed to start");
     return;
   }
-  httpd_uri_t upload = {};
-  upload.uri = "/ota";
-  upload.method = HTTP_POST;
-  upload.handler = handle_upload;
   httpd_uri_t set_token = {};
   set_token.uri = "/ota/token";
   set_token.method = HTTP_POST;
@@ -318,13 +316,24 @@ void ota_server_start() {
   filter.uri = "/filter";
   filter.method = HTTP_POST;
   filter.handler = handle_filter;
-  if (httpd_register_uri_handler(server, &upload) != ESP_OK ||
-      httpd_register_uri_handler(server, &set_token) != ESP_OK ||
+#if CONFIG_LEVOIT_HTTP_OTA
+  httpd_uri_t upload = {};
+  upload.uri = "/ota";
+  upload.method = HTTP_POST;
+  upload.handler = handle_upload;
+  if (httpd_register_uri_handler(server, &upload) != ESP_OK) {
+    httpd_stop(server);
+    server = nullptr;
+    ESP_LOGE(TAG, "failed to register the update endpoint");
+    return;
+  }
+#endif
+  if (httpd_register_uri_handler(server, &set_token) != ESP_OK ||
       httpd_register_uri_handler(server, &log) != ESP_OK ||
       httpd_register_uri_handler(server, &filter) != ESP_OK) {
     httpd_stop(server);
     server = nullptr;
-    ESP_LOGE(TAG, "failed to register the update endpoints");
+    ESP_LOGE(TAG, "failed to register the endpoints");
   }
 }
 
@@ -339,6 +348,13 @@ void ota_token_restore_default() {
 }
 
 bool ota_server_running() { return server != nullptr; }
+
+bool ota_image_unconfirmed() {
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  esp_ota_img_states_t state;
+  return running != nullptr && esp_ota_get_state_partition(running, &state) == ESP_OK &&
+         state == ESP_OTA_IMG_PENDING_VERIFY;
+}
 
 void ota_health_start() {
   const esp_partition_t *running = esp_ota_get_running_partition();
