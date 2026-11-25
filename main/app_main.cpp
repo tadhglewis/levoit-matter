@@ -37,6 +37,14 @@ extern "C" void app_main() {
     err = nvs_flash_init();
   }
   ESP_ERROR_CHECK(err);
+  nvs_handle_t esphome;
+  if (nvs_open("esphome", NVS_READONLY, &esphome) == ESP_OK) {
+    nvs_close(esphome);
+    ESP_LOGW(TAG, "ESPHome settings found, erasing all settings");
+    ESP_ERROR_CHECK(nvs_flash_deinit());
+    ESP_ERROR_CHECK(nvs_flash_erase());
+    ESP_ERROR_CHECK(nvs_flash_init());
+  }
 
   levoit::purifier_load();
   ESP_LOGI(TAG, "%s, filter %u%%", levoit::purifier_model().name,
