@@ -13,6 +13,9 @@
 #include <nvs_flash.h>
 
 #include <cstring>
+#include <map>
+#include <mbedtls/sha256.h>
+#include <string>
 
 static const char *const TAG = "app";
 
@@ -31,6 +34,50 @@ static void log_resources() {
            static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
 }
 
+void report_traces(const esp_partition_t *other) {
+  std::map<std::string, int> namespaces;
+  nvs_iterator_t it = nullptr;
+  for (esp_err_t err = nvs_entry_find(NVS_DEFAULT_PART_NAME, nullptr, NVS_TYPE_ANY, &it);
+       err == ESP_OK; err = nvs_entry_next(&it)) {
+    nvs_entry_info_t info;
+    nvs_entry_info(it, &info);
+    namespaces[info.namespace_name]++;
+  }
+  nvs_release_iterator(it);
+  for (const auto &entry : namespaces)
+    ESP_LOGI(TAG, "trace: nvs namespace %s, %d keys", entry.first.c_str(), entry.second);
+
+  static uint8_t chunk[1024];
+  const esp_partition_t *fctry =
+      esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "fctry");
+  if (fctry != nullptr) {
+    mbedtls_sha256_context sha;
+    mbedtls_sha256_init(&sha);
+    mbedtls_sha256_starts(&sha, 0);
+    for (uint32_t at = 0; at < fctry->size; at += sizeof(chunk)) {
+      esp_partition_read(fctry, at, chunk, sizeof(chunk));
+      mbedtls_sha256_update(&sha, chunk, sizeof(chunk));
+    }
+    uint8_t digest[32];
+    mbedtls_sha256_finish(&sha, digest);
+    mbedtls_sha256_free(&sha);
+    char hex[65];
+    for (int i = 0; i < 32; i++)
+      snprintf(hex + i * 2, 3, "%02x", digest[i]);
+    ESP_LOGI(TAG, "trace: fctry sha256 %s", hex);
+  }
+
+  if (other != nullptr) {
+    uint32_t written = 0;
+    for (uint32_t at = 0; at < other->size; at += sizeof(chunk)) {
+      esp_partition_read(other, at, chunk, sizeof(chunk));
+      for (uint8_t byte : chunk)
+        written += byte != 0xFF;
+    }
+    ESP_LOGI(TAG, "trace: %s has %u bytes not erased", other->label, static_cast<unsigned>(written));
+  }
+}
+
 void erase_other_firmware(void *) {
   while (ota_image_unconfirmed())
     vTaskDelay(pdMS_TO_TICKS(5000));
@@ -43,6 +90,10 @@ void erase_other_firmware(void *) {
     ESP_LOGW(TAG, "erasing %s from %s", theirs.project_name, other->label);
     esp_partition_erase_range(other, 0, other->size);
   }
+  while (!matter_network_ready())
+    vTaskDelay(pdMS_TO_TICKS(5000));
+  vTaskDelay(pdMS_TO_TICKS(10000));
+  report_traces(other);
   vTaskDelete(nullptr);
 }
 
@@ -71,7 +122,7 @@ extern "C" void app_main() {
   ESP_ERROR_CHECK(matter_setup_start());
   ESP_ERROR_CHECK(levoit::purifier_start({matter_publish, matter_factory_reset}));
   ota_health_start();
-  xTaskCreate(erase_other_firmware, "erase_other", 3072, nullptr, 1, nullptr);
+  xTaskCreate(erase_other_firmware, "erase_other", 6144, nullptr, 1, nullptr);
 
   log_resources();
   for (;;) {
