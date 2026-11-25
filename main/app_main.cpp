@@ -6,10 +6,13 @@
 #include <esp_err.h>
 #include <esp_heap_caps.h>
 #include <esp_log.h>
+#include <esp_ota_ops.h>
 #include <esp_system.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <nvs_flash.h>
+
+#include <cstring>
 
 static const char *const TAG = "app";
 
@@ -26,6 +29,21 @@ static void log_resources() {
            static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)),
            stack_free("levoit_link"), stack_free("CHIP"), stack_free("httpd"),
            static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+}
+
+void erase_other_firmware(void *) {
+  while (ota_image_unconfirmed())
+    vTaskDelay(pdMS_TO_TICKS(5000));
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  const esp_partition_t *other = esp_ota_get_next_update_partition(nullptr);
+  esp_app_desc_t mine, theirs;
+  if (other != nullptr && esp_ota_get_partition_description(running, &mine) == ESP_OK &&
+      esp_ota_get_partition_description(other, &theirs) == ESP_OK &&
+      strncmp(mine.project_name, theirs.project_name, sizeof(mine.project_name)) != 0) {
+    ESP_LOGW(TAG, "erasing %s from %s", theirs.project_name, other->label);
+    esp_partition_erase_range(other, 0, other->size);
+  }
+  vTaskDelete(nullptr);
 }
 
 extern "C" void app_main() {
@@ -53,6 +71,7 @@ extern "C" void app_main() {
   ESP_ERROR_CHECK(matter_setup_start());
   ESP_ERROR_CHECK(levoit::purifier_start({matter_publish, matter_factory_reset}));
   ota_health_start();
+  xTaskCreate(erase_other_firmware, "erase_other", 3072, nullptr, 1, nullptr);
 
   log_resources();
   for (;;) {
