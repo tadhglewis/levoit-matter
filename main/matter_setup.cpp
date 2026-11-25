@@ -106,13 +106,7 @@ public:
       break;
     }
     if (written == FanControl::Attributes::FanMode::Id) {
-      if (state.mode == FanControl::FanModeEnum::kLow)
-        post(RequestKind::FAN_LEVEL, 1);
-      else if (state.mode == FanControl::FanModeEnum::kMedium)
-        post(RequestKind::FAN_LEVEL, static_cast<uint8_t>((level_max + 1) / 2));
-      else
-        post(RequestKind::FAN_RESUME,
-             state.mode == FanControl::FanModeEnum::kHigh ? 1 : 0);
+      post(RequestKind::FAN_RESUME);
       return;
     }
     if (written == FanControl::Attributes::SpeedSetting::Id && written_value >= 1 &&
@@ -343,8 +337,8 @@ bool create_purifier_endpoint(esp_matter::node_t *node) {
   config.identify.identify_type =
       chip::to_underlying(Identify::IdentifyTypeEnum::kVisibleIndicator);
   config.fan_control.fan_mode_sequence = static_cast<uint8_t>(
-      model.has_auto ? FanControl::FanModeSequenceEnum::kOffLowMedHighAuto
-                     : FanControl::FanModeSequenceEnum::kOffLowMedHigh);
+      model.has_auto ? FanControl::FanModeSequenceEnum::kOffHighAuto
+                     : FanControl::FanModeSequenceEnum::kOffHigh);
   config.fan_control.delegate = &fan_delegate;
   esp_matter::endpoint_t *endpoint = esp_matter::endpoint::air_purifier::create(
       node, &config, esp_matter::ENDPOINT_FLAG_NONE, nullptr);

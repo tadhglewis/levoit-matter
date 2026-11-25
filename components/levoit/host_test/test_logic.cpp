@@ -228,7 +228,7 @@ static void test_models() {
   CHECK(state.level == 0);
 
   MatterView level3 = make_view(CORE_400S, state_of(true, Mode::MANUAL, 3), 3, 80);
-  CHECK(level3.fan_mode == FanModeView::MEDIUM && level3.percent_setting == 75);
+  CHECK(level3.fan_mode == FanModeView::HIGH && level3.percent_setting == 75);
   CHECK(level3.speed_current == 3);
   MatterView level4 = make_view(CORE_400S, state_of(true, Mode::MANUAL, 4), 4, 80);
   CHECK(level4.fan_mode == FanModeView::HIGH && level4.percent_setting == 100);
@@ -278,7 +278,7 @@ static void test_view() {
   CHECK(off.fan_mode == FanModeView::OFF && !off.sleep && !off.current_valid);
 
   MatterView manual = make_view(CORE_300S, state_of(true, Mode::MANUAL, 2), 2, 80);
-  CHECK(manual.fan_mode == FanModeView::MEDIUM);
+  CHECK(manual.fan_mode == FanModeView::HIGH);
   CHECK(manual.percent_setting == 66);
   CHECK(manual.current_valid && manual.percent_current == 66 && manual.speed_current == 2);
 
@@ -289,7 +289,7 @@ static void test_view() {
   CHECK(unreported.speed_current == 3);
 
   MatterView sleep = make_view(CORE_300S, state_of(true, Mode::SLEEP, 3), 3, 80);
-  CHECK(sleep.sleep && sleep.fan_mode == FanModeView::LOW && sleep.percent_setting == 33);
+  CHECK(sleep.sleep && sleep.fan_mode == FanModeView::HIGH && sleep.percent_setting == 33);
 
   MatterView automatic = make_view(CORE_300S, state_of(true, Mode::AUTO, 0), 3, 80);
   CHECK(automatic.fan_mode == FanModeView::AUTO && !automatic.current_valid);
