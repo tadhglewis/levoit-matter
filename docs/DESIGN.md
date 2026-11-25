@@ -121,17 +121,17 @@ Holding Sleep for three seconds clears it, as on stock. `tools/filter.sh` sets i
 
 Updates are Matter OTA. The purifier is an OTA Requestor (`CONFIG_ENABLE_OTA_REQUESTOR`). The build also writes `levoit_matter-ota.bin`: the app image behind a Matter header with vendor ID, product ID, version and a SHA-256 of the payload.
 
-Apple Home could deliver them, but only ones published to the Matter ledger under a vendor account. We have no vendor account. So `tools/matter-ota.sh` is the provider. It runs the [matter.js](https://github.com/matter-js/matter.js) shell, pinned to one version, with its storage in `devices/<name>/matter/`:
+Apple Home could deliver them, but only ones published to the Matter ledger under a vendor account. We have no vendor account. So `tools/matter-ota.sh` is the provider: `tools/matter-ota/matter-ota.mjs`, a controller on the [matter.js](https://github.com/matter-js/matter.js) API, with its packages pinned by `pnpm-lock.yaml` and its storage in `devices/<name>/matter/`. It has an OTA Provider endpoint, which lets its fabric use it, and allows test vendor IDs.
 
-1. `pair` commissions the shell as a second controller with a code from Turn On Pairing Mode. The shell adds an OTA Provider endpoint and lets the fabric use it.
-2. `update` connects, subscribes and sends AnnounceOTAProvider.
-3. The purifier sends QueryImage with its vendor ID, product ID and version. The shell offers the image only if the IDs match and its version is higher. It has to be told to allow test vendor IDs, which `pair` does.
+1. `pair` commissions it as a second controller with a code from Turn On Pairing Mode.
+2. `update` stores the image, connects, subscribes, checks the purifier's vendor ID, product ID and version against the image, and sends AnnounceOTAProvider.
+3. The purifier sends QueryImage with its vendor ID, product ID and version. The provider offers the image only if the IDs match and its version is higher.
 4. The purifier pulls the image over BDX, in 1024-byte blocks with one round trip each, on the CASE session. About 47 seconds for 1.5 MB. It strips the header and streams the payload through `esp_ota_write`. `esp_ota_end` checks the ESP image and its appended SHA-256.
-5. ApplyUpdateRequest, the shell says proceed, the purifier switches boot slot and reboots. After the reboot it compares its version with the target and reports NotifyUpdateApplied, which the tool waits for.
+5. ApplyUpdateRequest, the provider says proceed, the purifier switches boot slot and reboots. After the reboot it compares its version with the target and reports NotifyUpdateApplied, which the tool waits for.
 
 The SDK never marks the new image valid. That stays with the health check below, however the image arrived.
 
-While the running image is unconfirmed, the other slot holds the last good one, and an update would write over it. So both routes refuse until the health check below has confirmed the running image, usually within four seconds of boot. For Matter that is our requestor driver, a subclass of the SDK's `ExtendedOTARequestorDriver` that cancels in `UpdateAvailable`, before any download, whichever provider sent it. The tool retries twice, 20 seconds apart.
+While the running image is unconfirmed, the other slot holds the last good one, and an update would write over it. So both routes refuse until the health check below has confirmed the running image, usually within four seconds of boot. For Matter that is our requestor driver, a subclass of the SDK's `ExtendedOTARequestorDriver` that cancels in `UpdateAvailable`, before any download, whichever provider sent it. A refusal shows up as the requestor going from Querying straight back to Idle. The tool takes that as not yet and retries every 20 seconds for two and a half minutes, longer than the health check's deadline.
 
 The image is not signed. Any controller on a fabric can install any image. That is narrower than the HTTP token, which anyone on the network could read.
 

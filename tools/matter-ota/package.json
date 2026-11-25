@@ -1,0 +1,12 @@
+{
+  "name": "levoit-matter-ota",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@matter/general": "0.18.0",
+    "@matter/node": "0.18.0",
+    "@matter/nodejs": "0.18.0",
+    "@matter/protocol": "0.18.0",
+    "@matter/types": "0.18.0"
+  }
+}
