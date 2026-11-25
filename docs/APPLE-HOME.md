@@ -57,6 +57,7 @@ Observed. The firmware logs every write and which attribute it hit.
 | Tap Manual while off, no On/Off cluster | FanMode High |
 | Tap Auto while off, no On/Off cluster | FanMode Auto and FanMode High, 40 ms apart, in either order |
 | Tap Auto while off, with an On/Off cluster | On, then FanMode Auto |
+| Tap Manual while off, with an On/Off cluster | On, then FanMode High, 50 ms apart |
 | Drag the slider | A stream of PercentSetting writes |
 | "Turn the purifier on" | On, if the endpoint has On/Off |
 

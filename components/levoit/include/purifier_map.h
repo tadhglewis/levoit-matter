@@ -6,7 +6,7 @@
 
 namespace levoit {
 
-enum class FanModeView : uint8_t { OFF = 0, LOW = 1, MEDIUM = 2, HIGH = 3, AUTO = 5 };
+enum class FanModeView : uint8_t { OFF = 0, HIGH = 3, AUTO = 5 };
 
 struct MatterView {
   FanModeView fan_mode{FanModeView::OFF};
