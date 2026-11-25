@@ -52,6 +52,7 @@ bool republish_active = false;
 uint32_t last_minute_ms = 0;
 uint32_t saved_runtime = 0;
 bool filter_led_on = false;
+bool filter_led_sent = false;
 
 WifiLed wifi_led = WifiLed::OFF;
 WifiLed wifi_led_shown = WifiLed::OFF;
@@ -90,8 +91,9 @@ void publish(uint32_t now_ms, bool force) {
   have_view = callbacks.publish(view);
 
   bool led_wanted = view.change_indication == 2;
-  if (led_wanted != filter_led_on) {
+  if (led_wanted != filter_led_on || !filter_led_sent) {
     filter_led_on = led_wanted;
+    filter_led_sent = true;
     link_send(command_filter_led(led_wanted));
   }
 }
