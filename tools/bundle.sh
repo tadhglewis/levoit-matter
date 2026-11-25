@@ -15,9 +15,9 @@ OUT="$ROOT/dist/$NAME"
 rm -rf "$OUT" "$ROOT/dist/$NAME.zip"
 mkdir -p "$OUT/firmware" "$OUT/tools"
 cp "$BUILD/bootloader/bootloader.bin" "$BUILD/partition_table/partition-table.bin" \
-  "$BUILD/ota_data_initial.bin" "$BUILD/levoit_matter.bin" "$OUT/firmware/"
+  "$BUILD/ota_data_initial.bin" "$BUILD/levoit_matter.bin" "$BUILD/levoit_matter-ota.bin" "$OUT/firmware/"
 cp "$ROOT/tools/common.sh" "$ROOT/tools/factory.sh" "$ROOT/tools/flash.sh" \
-  "$ROOT/tools/monitor.sh" "$ROOT/tools/ota.sh" "$ROOT/tools/log.sh" "$ROOT/tools/watch.sh" "$ROOT/tools/filter.sh" \
+  "$ROOT/tools/monitor.sh" "$ROOT/tools/ota.sh" "$ROOT/tools/matter-ota.sh" "$ROOT/tools/log.sh" "$ROOT/tools/watch.sh" "$ROOT/tools/filter.sh" \
   "$ROOT/tools/flash_when_ready.py" "$ROOT/tools/verify_when_ready.py" "$OUT/tools/"
 cp "$ROOT/FLASHING.md" "$ROOT/LICENSE" "$OUT/"
 (cd "$OUT" && shasum -a 256 firmware/*.bin > SHA256SUMS)

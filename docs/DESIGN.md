@@ -119,13 +119,29 @@ Holding Sleep for three seconds clears it, as on stock. `tools/filter.sh` sets i
 
 ## Updates
 
-Apple Home can deliver Matter updates, but only ones published to the Matter ledger under a vendor account. We have no vendor account. So updates are an authenticated `POST /ota` on the purifier.
+Updates are Matter OTA. The purifier is an OTA Requestor (`CONFIG_ENABLE_OTA_REQUESTOR`). The build also writes `levoit_matter-ota.bin`: the app image behind a Matter header with vendor ID, product ID, version and a SHA-256 of the payload.
 
-The token is per purifier. `factory.sh` generates it and stores a salted SHA-256 hash in the factory partition. `POST /ota/token`, authorised with the current token, replaces it. A factory reset removes the replacement. With no token in the factory data the update server does not start.
+Apple Home could deliver them, but only ones published to the Matter ledger under a vendor account. We have no vendor account. So `tools/matter-ota.sh` is the provider. It runs the [matter.js](https://github.com/matter-js/matter.js) shell, pinned to one version, with its storage in `devices/<name>/matter/`:
 
-It is plain HTTP. The token and the image cross your network unencrypted, and the image is not signed. Anyone who can read your Wi-Fi traffic can take the token, and anyone with the token can replace the firmware. That is the same trust ESPHome's updates ask for. TLS on the chip would cost memory this board does not have to spare.
+1. `pair` commissions the shell as a second controller with a code from Turn On Pairing Mode. The shell adds an OTA Provider endpoint and lets the fabric use it.
+2. `update` connects, subscribes and sends AnnounceOTAProvider.
+3. The purifier sends QueryImage with its vendor ID, product ID and version. The shell offers the image only if the IDs match and its version is higher. It has to be told to allow test vendor IDs, which `pair` does.
+4. The purifier pulls the image over BDX, in 1024-byte blocks with one round trip each, on the CASE session. About 47 seconds for 1.5 MB. It strips the header and streams the payload through `esp_ota_write`. `esp_ota_end` checks the ESP image and its appended SHA-256.
+5. ApplyUpdateRequest, the shell says proceed, the purifier switches boot slot and reboots. After the reboot it compares its version with the target and reports NotifyUpdateApplied, which the tool waits for.
 
-A new image stays only if, within two minutes of booting, the network is up, the update server is running and the purifier's controller is answering. Otherwise the bootloader goes back to the previous image. An image that could not be updated again never survives.
+The SDK never marks the new image valid. That stays with the health check below, however the image arrived.
+
+While the running image is unconfirmed, the other slot holds the last good one, and an update would write over it. So both routes refuse until the health check below has confirmed the running image, usually within four seconds of boot. For Matter that is our requestor driver, a subclass of the SDK's `ExtendedOTARequestorDriver` that cancels in `UpdateAvailable`, before any download, whichever provider sent it. The tool retries twice, 20 seconds apart.
+
+The image is not signed. Any controller on a fabric can install any image. That is narrower than the HTTP token, which anyone on the network could read.
+
+Home Assistant's Matter Server is an OTA provider too. python-matter-server loads local updates from JSON files in its OTA provider folder, each pointing at an `.ota` file, and offers them to devices whose IDs match ([source](https://github.com/home-assistant-libs/python-matter-server/tree/main/matter_server/server/ota)). Our test vendor ID needs its test-net setting on. Not tried.
+
+`CONFIG_LEVOIT_HTTP_OTA` adds the old route, for development: `POST /ota` with the token, as plain HTTP. About ten seconds, any version, any image. Anyone who can read your Wi-Fi traffic can take the token and replace the firmware. Off by default.
+
+The token is per purifier. `factory.sh` generates it and stores a salted SHA-256 hash in the factory partition. It guards `/log`, `/filter` and, when built in, `/ota`. `POST /ota/token`, authorised with the current token, replaces it. A factory reset removes the replacement. With no token in the factory data the HTTP server does not start.
+
+A new image stays only if, within two minutes of booting, the network is up, the purifier's controller is answering and, when the purifier has a token, the HTTP server is running. Otherwise the bootloader goes back to the previous image.
 
 ## Tests
 
