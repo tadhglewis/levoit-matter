@@ -7,11 +7,14 @@
 
 #include <esp_log.h>
 #include <esp_matter.h>
+#include <esp_matter_ota.h>
 #include <sdkconfig.h>
 
 #include <app-common/zap-generated/ids/Attributes.h>
 #include <app-common/zap-generated/ids/Clusters.h>
 #include <app/clusters/air-quality-server/AirQualityCluster.h>
+#include <app/clusters/ota-requestor/ExtendedOTARequestorDriver.h>
+#include <app/clusters/ota-requestor/OTARequestorInterface.h>
 #include <app/clusters/fan-control-server/FanControlCluster.h>
 #include <app/clusters/fan-control-server/fan-control-delegate.h>
 #include <app/clusters/resource-monitoring-server/ResourceMonitoringCluster.h>
@@ -464,6 +467,21 @@ void print_onboarding_codes(bool factory) {
   fflush(stdout);
 }
 
+class OtaDriver final : public chip::DeviceLayer::ExtendedOTARequestorDriver {
+public:
+  void UpdateAvailable(const chip::UpdateDescription &update,
+                       chip::System::Clock::Seconds32 delay) override {
+    if (ota_image_unconfirmed()) {
+      ESP_LOGW(TAG, "update refused: the running image is not confirmed yet");
+      TEMPORARY_RETURN_IGNORED mRequestor->CancelImageUpdate();
+      return;
+    }
+    ExtendedOTARequestorDriver::UpdateAvailable(update, delay);
+  }
+};
+
+OtaDriver ota_driver;
+
 } // namespace
 
 esp_err_t matter_setup_start() {
@@ -515,6 +533,11 @@ esp_err_t matter_setup_start() {
   ESP_LOGI(TAG, "endpoints: purifier=%u air_quality=%u sleep=%u display=%u child_lock=%u",
            purifier_endpoint, air_quality_endpoint, sleep_endpoint,
            display_endpoint, child_lock_endpoint);
+
+  static esp_matter_ota_requestor_impl_t ota_impl = {.driver = &ota_driver};
+  esp_matter_ota_config_t ota_config = {};
+  ota_config.impl = &ota_impl;
+  esp_matter_ota_requestor_set_config(ota_config);
 
   esp_err_t err = esp_matter::start(event_callback);
   if (err != ESP_OK)

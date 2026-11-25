@@ -40,6 +40,15 @@ menu "Levoit purifier"
         help
             Apple Home shows it as an unnamed outlet tile. Turn off to leave it out.
 
+    config LEVOIT_HTTP_OTA
+        bool "Accept firmware over HTTP with the update token"
+        default n
+        help
+            Adds POST /ota for tools/ota.sh: about four times faster than a
+            Matter update, and it can downgrade. For development. Anyone who
+            reads the token off the network can replace the firmware, so
+            leave it off on purifiers you are not developing on.
+
     config LEVOIT_LOG_FRAMES
         bool "Log every serial frame to and from the purifier"
         default n
