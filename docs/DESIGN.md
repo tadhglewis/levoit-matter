@@ -93,6 +93,7 @@ sequenceDiagram
 - Commands wait for an acknowledgement, three attempts, with a gap between frames.
 - After a command the firmware holds the value it asked for, for two seconds. A status frame sent just before the purifier applied the command would otherwise make the control snap back.
 - No timing tricks to guess what a controller meant. We tried two. The fix was the On/Off cluster.
+- No air quality while off. The fan stops, so nothing is measured, but the purifier keeps its last level and reports PM2.5 as 5. PM2.5 reads null and air quality Unknown until it is on again. Same question for the ESPHome component: [tuct/levoit#149](https://github.com/tuct/levoit/pull/149).
 
 ## Models
 

@@ -196,6 +196,8 @@ static void test_models() {
   dark = state;
   dark.power = false;
   CHECK(!make_view(CORE_300S, dark, 3, 80).display);
+  CHECK(!make_view(CORE_300S, dark, 3, 80).pm25_valid && make_view(CORE_300S, dark, 3, 80).air_quality == 0);
+  CHECK(make_view(CORE_300S, state, 3, 80).pm25_valid && make_view(CORE_300S, state, 3, 80).air_quality == 1);
   MatterView idle = make_view(CORE_300S, state, 3, 80);
   CHECK(idle.fan_mode == FanModeView::AUTO && idle.current_valid && idle.percent_current == 33);
   FilterLife idle_filter(CORE_300S);

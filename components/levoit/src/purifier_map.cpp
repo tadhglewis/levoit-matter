@@ -86,9 +86,9 @@ MatterView make_view(const ModelSpec &model, const PurifierState &state,
     view.percent_current = view.percent_setting;
   }
 
-  view.pm25_valid = state.pm25_valid && state.pm25 <= 1000;
+  view.pm25_valid = state.power && state.pm25_valid && state.pm25 <= 1000;
   view.pm25 = state.pm25;
-  view.air_quality = air_quality_from_level(state.air_quality);
+  view.air_quality = state.power ? air_quality_from_level(state.air_quality) : 0;
   view.filter_percent = filter_percent;
   view.change_indication = change_indication_from_percent(filter_percent);
   view.sleep = state.power && state.mode == Mode::SLEEP;
