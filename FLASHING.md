@@ -65,7 +65,7 @@ The first build takes about 15 minutes. You should get a 1.48 MB image and `0 fa
 
 ## 4. Flash
 
-Make this purifier's setup code and update token. Once per purifier.
+Make this purifier's setup code and token. Once per purifier.
 
 ```bash
 ./tools/factory.sh
@@ -104,8 +104,9 @@ devices/purifier/
   secrets/
     qrcode.png         Matter setup code
     setup-codes.csv    the same code as text
-    ota-token.txt      token for updates over Wi-Fi
+    ota-token.txt      token for the log and filter endpoints
     ota-token.current  appears if you change the token, and wins
+  matter/              tools/matter-ota.sh's controller: keys for updating this purifier
 ```
 
 Back this folder up somewhere that is not this laptop. The setup code and token cannot be read back off the purifier. `stock-backup.bin` is the only way back to VeSync.
@@ -146,16 +147,34 @@ While you are there, rename the purifier itself from "Matter Accessory". Siri us
 
 ## 7. Update
 
+Once, add your computer as a second controller. In Apple Home, open the purifier's settings and tap Turn On Pairing Mode, then:
+
+```bash
+./tools/matter-ota.sh pair <code>
+```
+
+After that, to update:
+
 ```bash
 idf.py build
+./tools/matter-ota.sh update
+```
+
+It sends `build/levoit_matter-ota.bin` over Matter. That takes about a minute. The purifier reboots into the new image. If Wi-Fi, the link to the purifier's controller and, with a token, the log endpoint are not all up within two minutes, it goes back to the old one.
+
+Raise `PROJECT_VER_NUMBER` in `CMakeLists.txt` on every release. Matter only sends an image with a higher number, and Apple Home only re-reads a purifier's details when it goes up.
+
+### Faster updates while developing
+
+`CONFIG_LEVOIT_HTTP_OTA=y` in `sdkconfig.local` adds an HTTP update endpoint guarded by the token. It takes about ten seconds and can go back a version:
+
+```bash
 ./tools/ota.sh
 ```
 
-The purifier reboots into the new image. If Wi-Fi, the update server and the link to the purifier's controller are not all up within two minutes, it goes back to the old one.
+Anyone who reads the token off your network can replace the firmware with it, so leave it out of purifiers you are not developing on.
 
-Raise `PROJECT_VER_NUMBER` in `CMakeLists.txt` on every release. Apple Home only re-reads a purifier's details when that number goes up.
-
-To change the update token, 12 to 64 characters, no spaces:
+To change the token, 12 to 64 characters, no spaces:
 
 ```bash
 ./tools/ota.sh --set-token <new-token>

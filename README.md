@@ -24,6 +24,7 @@ Vital, Sprout and EverestAir use a different protocol. Not supported.
 | Filter life                | Percentage, with a warning when it runs low                                                                    |
 | Air quality                | Level and PM2.5                                                                                                |
 | Pairing                    | Scan a QR code. The phone hands over Wi-Fi by Bluetooth.                                                       |
+| Firmware updates           | Matter OTA Software Update, from your computer. A bad image rolls back.                                        |
 
 The buttons on the purifier still work, and Home follows them.
 
@@ -42,17 +43,20 @@ Removing the purifier from Home also puts it back in pairing mode.
 
 ## From your computer
 
-| To                       | Run                                  |
-| ------------------------ | ------------------------------------ |
-| Update the firmware, OTA | `./tools/ota.sh`                     |
-| Set filter life          | `./tools/filter.sh 60`               |
-| Read the log             | `./tools/log.sh`                     |
-| Follow the log           | `./tools/watch.sh`                   |
-| Change the update token  | `./tools/ota.sh --set-token <new>`   |
+| To                                | Run                                        |
+| --------------------------------- | ------------------------------------------ |
+| Let your computer update it, once | `./tools/matter-ota.sh pair <code>`        |
+| Update the firmware               | `./tools/matter-ota.sh update`             |
+| Set filter life                   | `./tools/filter.sh 60`                     |
+| Read the log                      | `./tools/log.sh`                           |
+| Follow the log                    | `./tools/watch.sh`                         |
+| Change the token                  | `./tools/ota.sh --set-token <new>`         |
 
 The first time, put the purifier's IP before the other arguments, for example `./tools/log.sh 192.168.1.50`. The tools remember it.
 
-OTA updates go over your own network, to an endpoint on the purifier that needs its token. Nothing is fetched from the internet. A new image has to come up with Wi-Fi and the purifier's controller both working, or the bootloader goes back to the old one.
+Updates use Matter OTA Software Update, sent from your computer by `tools/matter-ota.sh` with [matter.js](https://github.com/matter-js/matter.js). Only a controller you paired can send one, and the image travels over Matter's encrypted, certificate-authenticated connection, the same kind Apple Home uses. No password or token crosses the network. `pair` takes the code from Turn On Pairing Mode in the purifier's settings in Home and adds your computer as a second controller. Home stays paired. You need Node and [pnpm](https://pnpm.io/installation). The tool fetches only the matter.js package and Matter's public attestation certificates. A new image has to come up with Wi-Fi and the purifier's controller both working, or the bootloader goes back to the old one.
+
+Home Assistant's Matter Server can send the same updates. Untested; [docs/DESIGN.md](docs/DESIGN.md#updates) has how.
 
 ## Install
 
@@ -61,7 +65,7 @@ You open the case, solder five wires and flash over serial. Once.
 ```bash
 cp sdkconfig.local.example sdkconfig.local   # pick the model
 idf.py build
-./tools/factory.sh                           # this purifier's setup code and update token
+./tools/factory.sh                           # this purifier's setup code and token
 ./tools/flash.sh                             # backs up the stock firmware, then flashes
 ```
 
@@ -73,13 +77,13 @@ Read [FLASHING.md](FLASHING.md) first. It has the wiring, and the backup you wil
 
 The firmware contains no secrets. One build fits every purifier of a model.
 
-`tools/factory.sh` makes a setup code and an update token for one purifier and puts them in `devices/<name>/secrets/`. The chip stores a verifier for the first and a hash for the second, so neither can be read back off it.
+`tools/factory.sh` makes a setup code and a token for one purifier and puts them in `devices/<name>/secrets/`. The chip stores a verifier for the first and a hash for the second, so neither can be read back off it.
 
 Back that folder up. Lose it and you re-flash over serial to get a new code.
 
-Updates, the log and the filter setting are plain HTTP with that token. Fine on a home network you trust. Not fine on one you share.
+Updates need a controller you paired and travel encrypted. The log and the filter setting are plain HTTP with the token. Fine on a home network you trust. Not fine on one you share. Images are not signed: any controller you paired can install any image.
 
-Skip `factory.sh` and the purifier uses the public Matter test code, which anyone nearby can pair with, and refuses updates over Wi-Fi.
+Skip `factory.sh` and the purifier uses the public Matter test code, which anyone nearby can pair with, and has no log or filter endpoint.
 
 ## Limits
 
@@ -91,7 +95,7 @@ Apple Home's, not ours. [docs/APPLE-HOME.md](docs/APPLE-HOME.md) has the evidenc
 - No filter reset in Home. Use the Sleep button.
 - The slider redraws at the real speed only when your move changed the speed. Otherwise it sits where you left it until you reopen the app.
 - Home calls it an uncertified accessory, once, and offers "Matter Accessory" as its name.
-- Home will not deliver firmware updates.
+- Home will not deliver firmware updates. Use `tools/matter-ota.sh`.
 
 Ours:
 
