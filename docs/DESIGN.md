@@ -93,7 +93,7 @@ sequenceDiagram
 - Commands wait for an acknowledgement, three attempts, with a gap between frames.
 - After a command the firmware holds the value it asked for, for two seconds. A status frame sent just before the purifier applied the command would otherwise make the control snap back.
 - No timing tricks to guess what a controller meant. We tried two. The fix was the On/Off cluster.
-- Show what the panel shows. In Sleep and while off the panel is dark, so Display reads off, though the purifier keeps the setting. A Display change then is refused and the switch goes back to off, so nothing changes out of sight.
+- Show what the panel shows. In Sleep and while off the panel is dark, so Display reads off, though the purifier keeps the setting. Turning Display on then fails, so the controller never shows it on and nothing changes out of sight. Matter's answer for a request the current state cannot carry out is a refusal, not a success the device then contradicts.
 - Leaving Sleep sends Manual only. The purifier keeps the last manual speed through Sleep and resumes it.
 - Whatever the firmware drives on the purifier, it sets once after boot. The filter light may have been left on by other firmware.
 

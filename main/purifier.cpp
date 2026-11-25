@@ -99,6 +99,10 @@ void publish(uint32_t now_ms, bool force) {
 }
 
 void apply_plan(const Plan &plan, uint32_t now_ms) {
+  if (plan.count == 0) {
+    publish(now_ms, true);
+    return;
+  }
   for (uint8_t i = 0; i < plan.count; i++)
     link_send(plan.commands[i]);
   holdoff.expect(plan, now_ms);
