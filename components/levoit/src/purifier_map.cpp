@@ -78,9 +78,7 @@ MatterView make_view(const ModelSpec &model, const PurifierState &state,
   } else {
     uint8_t level = state.mode == Mode::SLEEP ? 1 : known_level != 0 ? known_level : 1;
     view.percent_setting = level_to_percent(level, model.level_max);
-    view.fan_mode = level <= 1                 ? FanModeView::LOW
-                    : level >= model.level_max ? FanModeView::HIGH
-                                               : FanModeView::MEDIUM;
+    view.fan_mode = FanModeView::HIGH;
     view.current_valid = true;
     view.speed_current = level;
     view.percent_current = view.percent_setting;
