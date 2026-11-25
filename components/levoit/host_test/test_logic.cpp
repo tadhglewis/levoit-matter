@@ -363,7 +363,11 @@ static void test_plans() {
   CHECK(to_sleep.count == 1 && to_sleep.commands[0].payload[0] == 0x01);
   CHECK(plan_sleep(off, true).count == 2);
   Plan wake = plan_sleep(sleeping, false);
-  CHECK(wake.count == 2 && wake.commands[0].payload[2] == 1);
+  CHECK(wake.count == 1 && wake.commands[0].command == command_mode(Mode::MANUAL).command &&
+        wake.commands[0].payload[0] == command_mode(Mode::MANUAL).payload[0]);
+  CHECK(plan_display(sleeping, true).count == 0);
+  CHECK(plan_display(off, true).count == 0);
+  CHECK(plan_display(manual2, false).count == 1);
   CHECK(plan_sleep(manual2, false).count == 0);
 }
 

@@ -177,11 +177,9 @@ Plan plan_sleep(const PurifierState &state, bool on) {
     return plan;
   }
   if (state.power && state.mode == Mode::SLEEP) {
-    plan.add(command_level(1));
     plan.add(command_mode(Mode::MANUAL));
-    plan.expected.level = 1;
     plan.expected.mode = Mode::MANUAL;
-    plan.expected_fields = FIELD_LEVEL | FIELD_MODE;
+    plan.expected_fields = FIELD_MODE;
   }
   return plan;
 }
@@ -189,7 +187,7 @@ Plan plan_sleep(const PurifierState &state, bool on) {
 Plan plan_display(const PurifierState &state, bool on) {
   Plan plan;
   plan.expected = state;
-  if (state.display_on == on)
+  if (state.display_on == on || !state.power || state.mode == Mode::SLEEP)
     return plan;
   plan.add(command_display(on));
   plan.expected.display_on = on;
