@@ -79,20 +79,26 @@ void report_traces(const esp_partition_t *other) {
 }
 
 void erase_other_firmware(void *) {
-  while (ota_image_unconfirmed())
+  while (ota_image_unconfirmed() || !matter_network_ready())
     vTaskDelay(pdMS_TO_TICKS(5000));
+  vTaskDelay(pdMS_TO_TICKS(30000));
   const esp_partition_t *running = esp_ota_get_running_partition();
   const esp_partition_t *other = esp_ota_get_next_update_partition(nullptr);
   esp_app_desc_t mine, theirs;
   if (other != nullptr && esp_ota_get_partition_description(running, &mine) == ESP_OK &&
       esp_ota_get_partition_description(other, &theirs) == ESP_OK &&
       strncmp(mine.project_name, theirs.project_name, sizeof(mine.project_name)) != 0) {
-    ESP_LOGW(TAG, "erasing %s from %s", theirs.project_name, other->label);
-    esp_partition_erase_range(other, 0, other->size);
+    ESP_LOGW(TAG, "erasing %s from %s, heap free=%u min=%u", theirs.project_name, other->label,
+             static_cast<unsigned>(esp_get_free_heap_size()),
+             static_cast<unsigned>(esp_get_minimum_free_heap_size()));
+    constexpr uint32_t STEP = 64 * 1024;
+    for (uint32_t at = 0; at < other->size; at += STEP) {
+      esp_partition_erase_range(other, at, STEP < other->size - at ? STEP : other->size - at);
+      vTaskDelay(pdMS_TO_TICKS(20));
+    }
+    ESP_LOGI(TAG, "erased, heap free=%u min=%u", static_cast<unsigned>(esp_get_free_heap_size()),
+             static_cast<unsigned>(esp_get_minimum_free_heap_size()));
   }
-  while (!matter_network_ready())
-    vTaskDelay(pdMS_TO_TICKS(5000));
-  vTaskDelay(pdMS_TO_TICKS(10000));
   report_traces(other);
   vTaskDelete(nullptr);
 }
