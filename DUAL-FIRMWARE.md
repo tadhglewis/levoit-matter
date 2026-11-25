@@ -4,4 +4,8 @@ This branch only. For one purifier that runs this firmware and sometimes [esphom
 
 Both use this repo's partition table and the same `fctry` factory data, so the label from `tools/factory.sh` pairs either. Each erases the other's settings on its first boot, so nothing carries over: not pairing, not Wi-Fi, not filter life. Set filter life with `tools/filter.sh` after coming back.
 
+Build this firmware with `CONFIG_LEVOIT_HTTP_OTA=y` in `sdkconfig.local`. Leaving it needs `tools/ota.sh`: the Matter update only takes a Matter image from the same vendor and product, and ESPHome builds none.
+
+The erase also removes `tools/matter-ota.sh`'s pairing. After coming back, delete `devices/<name>/matter/` and run `tools/matter-ota.sh pair` with a new code from Turn On Pairing Mode.
+
 The steps are in that repo's [`DUAL-FIRMWARE.md`](https://github.com/tadhglewis/esphome-levoit-matter/blob/dual-firmware/DUAL-FIRMWARE.md), on its `dual-firmware` branch.
