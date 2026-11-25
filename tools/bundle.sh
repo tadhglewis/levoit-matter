@@ -19,6 +19,8 @@ cp "$BUILD/bootloader/bootloader.bin" "$BUILD/partition_table/partition-table.bi
 cp "$ROOT/tools/common.sh" "$ROOT/tools/factory.sh" "$ROOT/tools/flash.sh" \
   "$ROOT/tools/monitor.sh" "$ROOT/tools/ota.sh" "$ROOT/tools/matter-ota.sh" "$ROOT/tools/log.sh" "$ROOT/tools/watch.sh" "$ROOT/tools/filter.sh" \
   "$ROOT/tools/flash_when_ready.py" "$ROOT/tools/verify_when_ready.py" "$OUT/tools/"
+mkdir -p "$OUT/tools/matter-ota"
+cp "$ROOT/tools/matter-ota/matter-ota.mjs" "$ROOT/tools/matter-ota/package.json" "$ROOT/tools/matter-ota/pnpm-lock.yaml" "$OUT/tools/matter-ota/"
 cp "$ROOT/FLASHING.md" "$ROOT/LICENSE" "$OUT/"
 (cd "$OUT" && shasum -a 256 firmware/*.bin > SHA256SUMS)
 (cd "$ROOT/dist" && zip -q -r "$NAME.zip" "$NAME")
