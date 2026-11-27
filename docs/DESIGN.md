@@ -101,7 +101,7 @@ sequenceDiagram
 
 ## Models
 
-The UART protocol comes from [tuct/levoit](https://github.com/tuct/levoit)'s shared core in `third_party/levoit`: framing, acknowledgements, every model's status decoder and command builder, and filter tracking. This firmware maps the core's state to Matter.
+The UART protocol comes from [tuct/levoit](https://github.com/tuct/levoit)'s shared core, pulled in by the ESP-IDF component manager (`components/levoit_matter/idf_component.yml`): framing, acknowledgements, every model's status decoder and command builder, and filter tracking. This firmware maps the core's state to Matter.
 
 What is model-specific here is one row in `components/levoit/src/purifier_model.cpp`: name, speed count, airflow, Auto and PM2.5. A new Core model is a row and a Kconfig entry. Vital, Sprout, EverestAir and Eleva need their own mode mapping (see the Matter data model note on fan modes), and the ESP32-C3 boards another build: https://github.com/tadhglewis/levoit-matter/issues/7.
 
@@ -150,7 +150,7 @@ A new image stays only if, within two minutes of booting, the network is up, the
 
 ## Tests
 
-`components/levoit/host_test/run.sh` runs on the build machine. It covers framing, decoding for each model, the mapping rules and the filter maths, using frames captured from real purifiers where we have them.
+`components/levoit_matter/host_test/run.sh` runs on the build machine. It covers framing, decoding for each model, the mapping rules and the filter maths, using frames captured from real purifiers where we have them.
 
 `tools/mcu_sim.py` plays the purifier's controller on a serial port.
 

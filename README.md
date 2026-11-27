@@ -120,7 +120,7 @@ Ours:
 
 Only the Core 300S has been run. If you flash a 200S, 400S or 600S, open an issue with the output of `./tools/log.sh` whether it worked or not. The first status frame is in there, and that is what a model fix needs. A build with `CONFIG_LEVOIT_LOG_FRAMES=y` logs every frame, which is better still.
 
-`./components/levoit/host_test/run.sh` has to pass. A change to the protocol code comes with a captured frame in the tests.
+`./components/levoit_matter/host_test/run.sh` has to pass. A change to the protocol code comes with a captured frame in the tests.
 
 ## Credits
 
