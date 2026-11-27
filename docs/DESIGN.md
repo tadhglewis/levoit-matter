@@ -159,22 +159,31 @@ Nothing tests the Matter side off the device.
 
 ## Resources
 
-Measured on the Core 300S on 2026-11-25, version 0.5.0, ESP-IDF 5.5.6 and esp-matter 1.6.1.
+Built for the Core 300S, ESP-IDF 5.5.6 and esp-matter 1.6.1. Image and memory sizes are from
+`idf.py size` on 2026-11-28; the heap and stack rows are the last on-device measurement.
 
 | | Size | Of |
 |---|---|---|
-| Firmware image | 1.48 MB | 1.94 MB app slot, 73% |
-| Static DRAM | 103 KB | 124 KB, 83% |
+| Firmware image | 1.49 MB | 1.94 MB app slot, 77% |
+| Static DRAM | 100 KB | 124 KB, 80% |
 | IRAM | 101 KB | 128 KB, 77% |
 
-Running and paired, from the log's once-a-minute report:
+Static DRAM was 106 KB (85%) before a RAM pass that returned 6.1 KB to the heap: the CHIP
+event-log buffers, which this device barely fills (its clusters emit almost no Matter events), went
+from 6 KB to 2 KB, and the `/log` ring from 6 KB to 4 KB. `idf.py size-components` shows the rest:
+esp-matter's data model and server are 53 KB of the static total, the Wi-Fi and Bluetooth stacks
+another 25 KB, and our own code 11 KB. Every byte of static DRAM saved is returned to the heap, so
+the floor below should rise by the same 6 KB; re-confirm on hardware.
+
+Running and paired, from the log's once-a-minute report (`min=` is a monotonic low-water mark, not a
+sample, so it is the one to trust):
 
 | | Value |
 |---|---|
 | Free heap | 111 KB, flat over 40 minutes |
 | Largest free block | 27.6 KB |
-| Lowest free heap since boot | 19.7 KB. 9.6 KB was seen once during Bluetooth pairing on an earlier build. |
-| Free stack: Matter / purifier link / update server / main | 4.1 / 3.6 / 3.6 / 5.7 KB, of 10 / 6 / 6 / 8 KB |
+| Lowest free heap since boot | 19.7 KB (`min=`), before the RAM pass. 9.6 KB was a one-off `free=` sample during Bluetooth pairing on an earlier build; see below. |
+| Free stack: Matter / purifier link / update server / main | 4.1 / 3.6 / 3.6 / 5.7 KB, of 10 / 8 / 6 / 8 KB |
 
 Timings:
 
@@ -308,7 +317,13 @@ Read from tuct's recordings. Not written down there, as far as we found.
 
 ## Not known
 
-- Why free memory during Bluetooth pairing was 9.6 KB once and 41 KB another time.
+- The 9.6 KB vs 41 KB pairing figures were almost certainly peak-during-Bluetooth vs post-Bluetooth,
+  not a mystery: Bluetooth's controller and host buffers (around 25 KB) are live only while pairing
+  and are freed once it shuts down, and the once-a-minute `free=` sample rarely lands on the trough.
+  The number to trust is `min=` (monotonic since boot), which was 19.7 KB. To re-pin the true floor:
+  factory reset, commission, then read the next minute's `min=`. Shrinking the Bluetooth buffer counts
+  (`BT_NIMBLE_*`) for the single low-rate commissioning connection would lift that peak further, but
+  needs a commissioning test on the device to prove it still pairs.
 - Whether a held On/Off button sends anything more at fifteen seconds.
 - Whether the running-speed byte rises in auto. It should.
 - What status offset 6 is.
