@@ -175,6 +175,21 @@ static void test_commands() {
   }
 }
 
+static void test_mode_mapping() {
+  core::LevoitState st;
+  PurifierState out;
+  PurifierState prev;
+  prev.mode = Mode::AUTO;
+  st.set_fan(1, 3, 4);  // Turbo -> Manual, distinct from the AUTO it replaces
+  CHECK(state_from_core(CORE_300S, st, prev, out) && out.mode == Mode::MANUAL);
+  prev.mode = Mode::MANUAL;
+  st.set_fan(1, 1, 5);  // Pet -> Auto
+  CHECK(state_from_core(CORE_300S, st, prev, out) && out.mode == Mode::AUTO);
+  prev.mode = Mode::SLEEP;
+  st.set_fan(1, 1, 3);  // Humidity, unused by any purifier -> keep previous
+  CHECK(state_from_core(CORE_300S, st, prev, out) && out.mode == Mode::SLEEP);
+}
+
 static void test_state_needs_fan_report() {
   Rig rig;
   PurifierState out;
@@ -216,6 +231,7 @@ int main() {
   test_capture();
   test_commands();
   test_state_needs_fan_report();
+  test_mode_mapping();
   test_button_hold();
   test_filter_percent();
   printf("%d checks, %d failures\n", checks, failures);

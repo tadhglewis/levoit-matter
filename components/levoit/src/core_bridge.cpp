@@ -14,6 +14,20 @@ uint8_t speed_in_range(const ModelSpec &model, int speed) {
   return speed >= 1 && speed <= model.level_max ? static_cast<uint8_t>(speed) : 0;
 }
 
+// The MCU's raw fan mode (fan_modes.h) mapped to the three Matter shows:
+// Manual, Sleep, Auto. Turbo runs flat out, so it reads as Manual at full
+// speed; Pet is adaptive, so it reads as Auto. An unknown mode keeps the last.
+Mode mode_from_raw(int raw, Mode previous) {
+  switch (raw) {
+  case 0: return Mode::MANUAL;
+  case 1: return Mode::SLEEP;
+  case 2: return Mode::AUTO;
+  case 4: return Mode::MANUAL;  // Turbo (EverestAir)
+  case 5: return Mode::AUTO;    // Pet (Vital)
+  default: return previous;
+  }
+}
+
 } // namespace
 
 bool state_from_core(const ModelSpec &model, const core::LevoitState &state,
@@ -24,8 +38,7 @@ bool state_from_core(const ModelSpec &model, const core::LevoitState &state,
 
   out = previous;
   out.power = fan.power == 1;
-  if (fan.mode >= 0 && fan.mode <= static_cast<int>(Mode::AUTO))
-    out.mode = static_cast<Mode>(fan.mode);
+  out.mode = mode_from_raw(fan.mode, previous.mode);
 
   uint8_t speed = speed_in_range(model, fan.speed);
   out.running_level_valid = fan.selected_speed != -1;

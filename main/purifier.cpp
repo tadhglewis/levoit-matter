@@ -380,7 +380,7 @@ void on_poll(uint32_t now_ms) {
   if (host.take_filter_changed())
     publish(now_ms, false);
 
-  if (&model == &CORE_300S && now_ms - last_status_ms > STATUS_QUERY_MS &&
+  if (model.poll_status && now_ms - last_status_ms > STATUS_QUERY_MS &&
       now_ms - last_query_ms > STATUS_QUERY_MS) {
     last_query_ms = now_ms;
     device.sendCommand(core::CommandType::requestCore300sStatus);

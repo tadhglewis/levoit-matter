@@ -15,6 +15,7 @@ struct ModelSpec {
   uint8_t filter_months;
   bool has_auto;
   bool has_air_quality;
+  bool poll_status;  // MCU pushes slowly; ask for status until one arrives
 };
 
 extern const ModelSpec CORE_200S;
