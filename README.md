@@ -111,6 +111,7 @@ Ours:
 - [FLASHING.md](FLASHING.md): build, flash, pair, update
 - [docs/DESIGN.md](docs/DESIGN.md): how it works, and the purifier's serial protocol
 - [docs/APPLE-HOME.md](docs/APPLE-HOME.md): what Apple Home does with a Matter purifier
+- [docs/teardown](docs/teardown/index.html): the teardown and engineering demo. The board, the protocol, the stock cloud, the flash, and Matter. Open it in a browser.
 - [esphome-levoit-matter](https://github.com/tadhglewis/esphome-levoit-matter): the same purifier as an ESPHome config. Best effort.
 
 ## Contributing
