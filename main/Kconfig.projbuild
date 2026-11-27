@@ -12,11 +12,14 @@ menu "Levoit purifier"
             bool "Core 400S"
         config LEVOIT_MODEL_CORE600S
             bool "Core 600S"
+        config LEVOIT_MODEL_SPROUT
+            bool "Sprout"
     endchoice
 
     config LEVOIT_UART_TX_GPIO
         int "GPIO wired to the purifier controller's RX"
         default 16 if LEVOIT_MODEL_CORE200S
+        default 22 if LEVOIT_MODEL_SPROUT
         default 17
         help
             The Core 200S uses 16. The Core 200S-P (hardware version 2.0) uses 17.
@@ -24,6 +27,7 @@ menu "Levoit purifier"
     config LEVOIT_UART_RX_GPIO
         int "GPIO wired to the purifier controller's TX"
         default 17 if LEVOIT_MODEL_CORE200S
+        default 23 if LEVOIT_MODEL_SPROUT
         default 16
         help
             The Core 200S uses 17. The Core 200S-P (hardware version 2.0) uses 16.

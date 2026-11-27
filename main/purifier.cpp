@@ -36,6 +36,8 @@ const ModelSpec &model = CORE_200S;
 const ModelSpec &model = CORE_400S;
 #elif CONFIG_LEVOIT_MODEL_CORE600S
 const ModelSpec &model = CORE_600S;
+#elif CONFIG_LEVOIT_MODEL_SPROUT
+const ModelSpec &model = SPROUT;
 #else
 const ModelSpec &model = CORE_300S;
 #endif
