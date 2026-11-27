@@ -128,6 +128,6 @@ Only the Core 300S has been run. If you flash a 200S, 400S or 600S, open an issu
 
 The serial protocol comes from [tuct/levoit](https://github.com/tuct/levoit) and [mulcmu/esphome-levoit-core300s](https://github.com/mulcmu/esphome-levoit-core300s). Their captures are the test vectors for the models we cannot test ourselves.
 
-This firmware began with its own decoder. The protocol work is now in tuct/levoit, and this firmware pulls it in as a shared core. Our Core 300S findings (controller 1.0.0) are merged there, [#140](https://github.com/tuct/levoit/pull/140)–[#144](https://github.com/tuct/levoit/pull/144).
+This firmware began with its own decoder. The protocol work is now in [tuct/levoit](https://github.com/tuct/levoit), and this firmware pulls it in as a shared core. Our Core 300S findings (controller 1.0.0) are merged there, [#140](https://github.com/tuct/levoit/pull/140)–[#144](https://github.com/tuct/levoit/pull/144).
 
 MIT. See [LICENSE](LICENSE).
