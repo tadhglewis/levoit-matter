@@ -22,6 +22,7 @@ extern const ModelSpec CORE_200S;
 extern const ModelSpec CORE_300S;
 extern const ModelSpec CORE_400S;
 extern const ModelSpec CORE_600S;
+extern const ModelSpec SPROUT;
 
 struct PurifierState {
   bool power{false};

@@ -85,6 +85,10 @@ static void test_mapping() {
 }
 
 static void test_view() {
+  CHECK(SPROUT.level_max == 4 && SPROUT.has_air_quality && SPROUT.has_auto && !SPROUT.poll_status);
+  MatterView sprout_top = make_view(SPROUT, state_of(true, Mode::MANUAL, 4), 4, 80);
+  CHECK(sprout_top.fan_mode == FanModeView::HIGH && sprout_top.percent_setting == 100 && sprout_top.speed_current == 4);
+
   MatterView off = make_view(CORE_300S, state_of(false, Mode::MANUAL, 2), 2, 80);
   CHECK(off.fan_mode == FanModeView::OFF && !off.sleep && !off.current_valid);
 
