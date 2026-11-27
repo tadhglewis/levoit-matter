@@ -26,23 +26,26 @@ constexpr int RX_PIN = CONFIG_LEVOIT_UART_RX_GPIO;
 constexpr const char *NVS_NAMESPACE = "core";
 constexpr const char *CORE_KEY_PREFIX = "levoit_";
 constexpr uint32_t REPUBLISH_WINDOW_MS = 3000;
-constexpr uint32_t STATUS_QUERY_MS = 5000;
 constexpr uint32_t FILTER_LED_RESEND_MS = 1500;
 constexpr size_t MAX_TIMEOUTS = 8;
 
+// The model is chosen at build time; the core is told its key, and the rest of
+// ModelSpec is read back from the core in purifier_load().
 #if CONFIG_LEVOIT_MODEL_CORE200S
-const ModelSpec &model = CORE_200S;
+constexpr const char *CORE_NAME = "CORE200S";
 #elif CONFIG_LEVOIT_MODEL_CORE400S
-const ModelSpec &model = CORE_400S;
+constexpr const char *CORE_NAME = "CORE400S";
 #elif CONFIG_LEVOIT_MODEL_CORE600S
-const ModelSpec &model = CORE_600S;
+constexpr const char *CORE_NAME = "CORE600S";
 #elif CONFIG_LEVOIT_MODEL_SPROUT
-const ModelSpec &model = SPROUT;
+constexpr const char *CORE_NAME = "SPROUT";
 #elif CONFIG_LEVOIT_MODEL_EVERESTAIR
-const ModelSpec &model = EVERESTAIR;
+constexpr const char *CORE_NAME = "EVERESTAIR";
 #else
-const ModelSpec &model = CORE_300S;
+constexpr const char *CORE_NAME = "CORE300S";
 #endif
+constexpr uint8_t FILTER_LIFETIME_MONTHS = 6;
+ModelSpec model{};  // filled from the core in purifier_load()
 PurifierCallbacks callbacks{};
 QueueHandle_t requests = nullptr;
 
@@ -58,8 +61,6 @@ bool have_view = false;
 
 uint32_t republish_started_ms = 0;
 bool republish_active = false;
-uint32_t last_status_ms = 0;
-uint32_t last_query_ms = 0;
 bool filter_led_on = false;
 bool filter_led_sent = false;
 uint32_t filter_led_resend_ms = 0;
@@ -220,10 +221,6 @@ Platform platform;
 Host host;
 core::LevoitDevice device(&host, &platform);
 
-uint32_t filter_capacity() {
-  return static_cast<uint32_t>(model.cadr_m3h) * 24 * 30 * model.filter_months;
-}
-
 void publish(uint32_t now_ms, bool force) {
   if (!have_state)
     return;
@@ -271,11 +268,7 @@ void show_wifi_led(uint32_t now_ms) {
 }
 
 void set_filter_percent(uint8_t percent, uint32_t now_ms) {
-  if (percent > 100)
-    percent = 100;
-  uint64_t used = (static_cast<uint64_t>(filter_capacity()) * (100 - percent) + 99) / 100;
-  device.set_used_cadr(static_cast<uint32_t>(used));
-  device.publish_filter_stats_now();
+  device.set_filter_percent(percent);
   publish(now_ms, true);
 }
 
@@ -347,7 +340,6 @@ void take_status(uint32_t now_ms) {
     return;
   raw_state = next;
   have_state = true;
-  last_status_ms = now_ms == 0 ? 1 : now_ms;
   if (raw_state.level != 0 &&
       (raw_state.mode == Mode::MANUAL || raw_state.running_level_valid))
     last_level = raw_state.level;
@@ -384,11 +376,6 @@ void on_poll(uint32_t now_ms) {
   if (host.take_filter_changed())
     publish(now_ms, false);
 
-  if (model.poll_status && now_ms - last_status_ms > STATUS_QUERY_MS &&
-      now_ms - last_query_ms > STATUS_QUERY_MS) {
-    last_query_ms = now_ms;
-    device.sendCommand(core::CommandType::requestCore300sStatus);
-  }
 
   if (filter_led_resend_ms != 0 && static_cast<int32_t>(now_ms - filter_led_resend_ms) >= 0)
     publish(now_ms, true);
@@ -411,6 +398,10 @@ const ModelSpec &purifier_model() { return model; }
 void purifier_load() {
   if (requests == nullptr)
     requests = xQueueCreate(16, sizeof(Request));
+  device.set_device_model(CORE_NAME);
+  device.note_number_state(core::NumberType::FILTER_LIFETIME_MONTHS, FILTER_LIFETIME_MONTHS);
+  model = {device.display_name(), device.speed_count(), device.has_auto(),
+           device.has_air_quality()};
 }
 
 uint8_t purifier_filter_percent() { return filter_percent.load(); }
@@ -425,8 +416,6 @@ esp_err_t purifier_start(const PurifierCallbacks &purifier_callbacks) {
   esp_log_level_set("levoit.decoder", ESP_LOG_WARN);
   esp_log_level_set("levoit.core", ESP_LOG_WARN);
   esp_log_level_set("levoit.core_cmd", ESP_LOG_WARN);
-  device.set_device_model(model.core_name);
-  device.note_number_state(core::NumberType::FILTER_LIFETIME_MONTHS, model.filter_months);
   LinkHandlers handlers = {on_bytes, on_poll};
   return link_start(TX_PIN, RX_PIN, handlers);
 }

@@ -7,23 +7,14 @@ namespace levoit_matter {
 enum class Mode : uint8_t { MANUAL = 0, SLEEP = 1, AUTO = 2 };
 enum class WifiLed : uint8_t { OFF, SOLID, BLINK };
 
+// What the Matter mapping needs about the model, all filled at startup from the
+// core's own accessors (purifier.cpp).
 struct ModelSpec {
   const char *name;
-  const char *core_name;
   uint8_t level_max;
-  uint16_t cadr_m3h;
-  uint8_t filter_months;
   bool has_auto;
   bool has_air_quality;
-  bool poll_status;  // MCU pushes slowly; ask for status until one arrives
 };
-
-extern const ModelSpec CORE_200S;
-extern const ModelSpec CORE_300S;
-extern const ModelSpec CORE_400S;
-extern const ModelSpec CORE_600S;
-extern const ModelSpec SPROUT;
-extern const ModelSpec EVERESTAIR;
 
 struct PurifierState {
   bool power{false};
