@@ -13,9 +13,11 @@ Note the filter percentage VeSync shows. You will need it at the end.
 ## 1. Tools
 
 ```bash
-git clone https://github.com/tadhglewis/levoit-matter.git
+git clone --recursive https://github.com/tadhglewis/levoit-matter.git
 cd levoit-matter
 ```
+
+The protocol comes from [tuct/levoit](https://github.com/tuct/levoit) as a submodule. In an existing clone, run `git submodule update --init`.
 
 To build you need ESP-IDF 5.5.6. Install it [the way Espressif says](https://docs.espressif.com/projects/esp-idf/en/v5.5.6/esp32/get-started/index.html) and run its `export.sh`.
 
