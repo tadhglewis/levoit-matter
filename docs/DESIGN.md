@@ -102,7 +102,7 @@ sequenceDiagram
 
 ## Models
 
-This firmware started standalone, with its own copy of the Levoit UART protocol reverse-engineered from a Core 300S. That protocol work went upstream to [tuct/levoit](https://github.com/tuct/levoit), the established open-source Levoit driver, and the two now share one core: tuct/levoit owns the protocol, this firmware pulls it in and maps it to Matter. A private decoder became a component anyone can build on.
+This firmware started standalone, with its own decoder for the Core 300S UART protocol. That protocol work is now in [tuct/levoit](https://github.com/tuct/levoit); this firmware pulls it in and maps it to Matter.
 
 So the protocol — framing, acknowledgements, every model's status decoder and command builder, filter tracking — lives in [tuct/levoit](https://github.com/tuct/levoit), pulled in by the ESP-IDF component manager (`components/levoit_matter/idf_component.yml`). This firmware maps the core's state to Matter.
 
