@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace levoit {
+namespace levoit_matter {
 
 constexpr uint8_t FRAME_START = 0xA5;
 constexpr uint8_t TYPE_SEND = 0x22;
@@ -48,4 +48,4 @@ private:
   size_t have_{0};
 };
 
-} // namespace levoit
+} // namespace levoit_matter

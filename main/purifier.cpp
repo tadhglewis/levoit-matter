@@ -13,7 +13,7 @@
 
 static const char *const TAG = "purifier";
 
-namespace levoit {
+namespace levoit_matter {
 
 namespace {
 
@@ -288,4 +288,4 @@ bool purifier_ready() { return ready.load(); }
 
 bool purifier_link_alive() { return link_alive(); }
 
-} // namespace levoit
+} // namespace levoit_matter

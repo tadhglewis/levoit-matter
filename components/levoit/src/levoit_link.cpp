@@ -14,7 +14,7 @@
 
 static const char *const TAG = "link";
 
-namespace levoit {
+namespace levoit_matter {
 
 namespace {
 
@@ -269,4 +269,4 @@ bool link_alive() {
   return frame_seen.load() && now_ms() - last_frame_ms.load() < ALIVE_WINDOW_MS;
 }
 
-} // namespace levoit
+} // namespace levoit_matter

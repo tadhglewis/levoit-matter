@@ -6,7 +6,7 @@
 
 #include <cstdint>
 
-namespace levoit {
+namespace levoit_matter {
 
 enum class RequestKind : uint8_t {
   FAN_OFF,
@@ -41,4 +41,4 @@ bool purifier_post(const Request &request);
 bool purifier_ready();
 bool purifier_link_alive();
 
-} // namespace levoit
+} // namespace levoit_matter

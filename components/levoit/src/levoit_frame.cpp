@@ -2,7 +2,7 @@
 
 #include <cstring>
 
-namespace levoit {
+namespace levoit_matter {
 
 uint8_t frame_checksum(const uint8_t *data, size_t len) {
   uint32_t sum = 0;
@@ -109,4 +109,4 @@ bool FrameParser::next(Frame &frame) {
   return found;
 }
 
-} // namespace levoit
+} // namespace levoit_matter

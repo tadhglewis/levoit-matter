@@ -58,7 +58,7 @@ public:
   }
   CHIP_ERROR GetProductName(char *buf, size_t size) override {
     char name[32];
-    snprintf(name, sizeof(name), "Levoit %s", levoit::purifier_model().name);
+    snprintf(name, sizeof(name), "Levoit %s", levoit_matter::purifier_model().name);
     return copy(name, buf, size);
   }
 };

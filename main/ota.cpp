@@ -245,7 +245,7 @@ esp_err_t handle_filter(httpd_req_t *request) {
   }
   if (percent > 100)
     return fail(request, HTTPD_400_BAD_REQUEST, "send a percentage, 0 to 100");
-  if (!levoit::purifier_post({levoit::RequestKind::FILTER_SET, static_cast<uint8_t>(percent)}))
+  if (!levoit_matter::purifier_post({levoit_matter::RequestKind::FILTER_SET, static_cast<uint8_t>(percent)}))
     return fail(request, HTTPD_500_INTERNAL_SERVER_ERROR, "busy, try again");
   httpd_resp_sendstr(request, "ok, filter life set\n");
   return ESP_OK;
@@ -268,7 +268,7 @@ void health_task(void *) {
   uint32_t waited = 0;
   while (waited < HEALTH_DEADLINE_MS) {
     if (matter_network_ready() && (ota_server_running() || !credentials.present) &&
-        levoit::purifier_link_alive()) {
+        levoit_matter::purifier_link_alive()) {
       esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
       ESP_LOGI(TAG, "new image confirmed: %s", esp_err_to_name(err));
       if (err == ESP_OK)

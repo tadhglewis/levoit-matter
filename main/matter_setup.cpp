@@ -40,9 +40,9 @@ static const char *const TAG = "matter";
 using namespace chip::app::Clusters;
 namespace DeviceEventType = chip::DeviceLayer::DeviceEventType;
 using chip::Protocols::InteractionModel::Status;
-using levoit::MatterView;
-using levoit::Request;
-using levoit::RequestKind;
+using levoit_matter::MatterView;
+using levoit_matter::Request;
+using levoit_matter::RequestKind;
 
 namespace {
 
@@ -60,11 +60,11 @@ std::atomic<bool> network_ready{false};
 std::atomic<bool> display_dark{false};
 
 void post(RequestKind kind, uint8_t value = 0) {
-  if (!levoit::purifier_post({kind, value}))
+  if (!levoit_matter::purifier_post({kind, value}))
     ESP_LOGW(TAG, "request queue full");
 }
 
-void set_wifi_led(levoit::WifiLed state) {
+void set_wifi_led(levoit_matter::WifiLed state) {
   post(RequestKind::WIFI_LED, static_cast<uint8_t>(state));
 }
 
@@ -77,15 +77,15 @@ public:
   }
 
   void OnWindSettingChanged(chip::BitMask<FanControl::WindBitmap> value) override {
-    if (pushing || !levoit::purifier_ready())
+    if (pushing || !levoit_matter::purifier_ready())
       return;
     post(RequestKind::SLEEP, value.Has(FanControl::WindBitmap::kSleepWind) ? 1 : 0);
   }
 
   void OnFanDriveStateChanged(const FanControl::FanDriveState &state) override {
-    if (pushing || !levoit::purifier_ready())
+    if (pushing || !levoit_matter::purifier_ready())
       return;
-    uint8_t level_max = levoit::purifier_model().level_max;
+    uint8_t level_max = levoit_matter::purifier_model().level_max;
     uint32_t written = fan_written_attribute;
     uint8_t written_value = fan_written_value;
     fan_written_attribute = NO_ATTRIBUTE;
@@ -118,7 +118,7 @@ public:
                           ? written_value
                           : state.percentSetting.IsNull() ? 0 : state.percentSetting.Value();
     if (percent > 0)
-      post(RequestKind::FAN_LEVEL, levoit::percent_to_level(percent, level_max));
+      post(RequestKind::FAN_LEVEL, levoit_matter::percent_to_level(percent, level_max));
     else if (!state.speedSetting.IsNull() && state.speedSetting.Value() >= 1 &&
              state.speedSetting.Value() <= level_max)
       post(RequestKind::FAN_LEVEL, state.speedSetting.Value());
@@ -160,10 +160,10 @@ void apply_view(const MatterView &view) {
 
   if (auto *fan = FanControl::FindClusterOnEndpoint(purifier_endpoint)) {
     switch (view.fan_mode) {
-    case levoit::FanModeView::OFF:
+    case levoit_matter::FanModeView::OFF:
       fan->SetFanMode(FanControl::FanModeEnum::kOff);
       break;
-    case levoit::FanModeView::AUTO:
+    case levoit_matter::FanModeView::AUTO:
       fan->SetFanMode(FanControl::FanModeEnum::kAuto);
       break;
     default: {
@@ -213,12 +213,12 @@ void apply_view(const MatterView &view) {
         Pm25ConcentrationMeasurement::Attributes::MeasuredValue::Id, &pm25);
   }
 
-  report_switch(purifier_endpoint, view.fan_mode != levoit::FanModeView::OFF);
+  report_switch(purifier_endpoint, view.fan_mode != levoit_matter::FanModeView::OFF);
   if (device_info_set_local_config_disabled(view.child_lock))
     esp_matter::data_model::provider::get_instance().ReportAttributeChanged(
         chip::app::AttributePathParams(0, BasicInformation::Id,
                                        BasicInformation::Attributes::LocalConfigDisabled::Id));
-  display_dark.store(view.sleep || view.fan_mode == levoit::FanModeView::OFF);
+  display_dark.store(view.sleep || view.fan_mode == levoit_matter::FanModeView::OFF);
   report_switch(sleep_endpoint, view.sleep);
   report_switch(display_endpoint, view.display);
   report_switch(child_lock_endpoint, view.child_lock);
@@ -246,7 +246,7 @@ esp_err_t attribute_callback(esp_matter::attribute::callback_type_t type,
       cluster_id != OnOff::Id || attribute_id != OnOff::Attributes::OnOff::Id ||
       value == nullptr)
     return ESP_OK;
-  if (!levoit::purifier_ready())
+  if (!levoit_matter::purifier_ready())
     return ESP_OK;
   uint8_t on = value->val.b ? 1 : 0;
   if (endpoint_id == 0)
@@ -298,18 +298,18 @@ void event_callback(const ChipDeviceEvent *event, intptr_t) {
         change == chip::DeviceLayer::InterfaceIpChangeType::kIpV6_Assigned) {
       network_ready.store(true);
       if (has_fabric()) {
-        set_wifi_led(levoit::WifiLed::SOLID);
+        set_wifi_led(levoit_matter::WifiLed::SOLID);
         ota_server_start();
       }
     } else if (change == chip::DeviceLayer::InterfaceIpChangeType::kIpV4_Lost) {
       network_ready.store(false);
-      set_wifi_led(levoit::WifiLed::BLINK);
+      set_wifi_led(levoit_matter::WifiLed::BLINK);
     }
     break;
   }
   case DeviceEventType::kCommissioningComplete:
     ESP_LOGI(TAG, "commissioning complete");
-    set_wifi_led(levoit::WifiLed::SOLID);
+    set_wifi_led(levoit_matter::WifiLed::SOLID);
     ota_server_start();
     break;
   case DeviceEventType::kFabricRemoved:
@@ -331,7 +331,7 @@ void event_callback(const ChipDeviceEvent *event, intptr_t) {
 
 bool create_purifier_endpoint(esp_matter::node_t *node) {
   namespace cluster = esp_matter::cluster;
-  const levoit::ModelSpec &model = levoit::purifier_model();
+  const levoit_matter::ModelSpec &model = levoit_matter::purifier_model();
 
   esp_matter::endpoint::air_purifier::config_t config;
   config.identify.identify_type =
@@ -367,7 +367,7 @@ bool create_purifier_endpoint(esp_matter::node_t *node) {
       cluster::on_off::command::create_toggle(on_off) == nullptr)
     return false;
 
-  uint8_t filter_percent = levoit::purifier_filter_percent();
+  uint8_t filter_percent = levoit_matter::purifier_filter_percent();
   cluster::hepa_filter_monitoring::config_t filter_config;
   filter_config.delegate = &filter_delegate;
   esp_matter::cluster_t *filter = cluster::hepa_filter_monitoring::create(
@@ -507,14 +507,14 @@ esp_err_t matter_setup_start() {
           basic, false) == nullptr)
     ESP_LOGW(TAG, "local config lock not added");
   device_info_on_local_config_write([](bool disabled) {
-    if (pushing || !levoit::purifier_ready())
+    if (pushing || !levoit_matter::purifier_ready())
       return;
     post(RequestKind::CHILD_LOCK, disabled ? 1 : 0);
   });
 
   if (!create_purifier_endpoint(node))
     return ESP_FAIL;
-  if (levoit::has_air_quality(levoit::purifier_model()) &&
+  if (levoit_matter::has_air_quality(levoit_matter::purifier_model()) &&
       !create_air_quality_endpoint(node))
     return ESP_FAIL;
   sleep_endpoint = create_switch_endpoint(node, 1, "Sleep");
@@ -546,14 +546,14 @@ esp_err_t matter_setup_start() {
   CHIP_ERROR scheduled = chip::DeviceLayer::PlatformMgr().ScheduleWork([](intptr_t) {
     attach_delegates();
     if (!has_fabric())
-      set_wifi_led(levoit::WifiLed::BLINK);
+      set_wifi_led(levoit_matter::WifiLed::BLINK);
     if (auto *filter = ResourceMonitoring::GetClusterInstance(
             purifier_endpoint, HepaFilterMonitoring::Id)) {
-      uint8_t percent = levoit::purifier_filter_percent();
+      uint8_t percent = levoit_matter::purifier_filter_percent();
       filter->UpdateCondition(percent);
       filter->UpdateChangeIndication(
           static_cast<ResourceMonitoring::ChangeIndicationEnum>(
-              levoit::change_indication_from_percent(percent)));
+              levoit_matter::change_indication_from_percent(percent)));
     }
     ESP_LOGI(TAG, "paired controllers: %u",
              chip::Server::GetInstance().GetFabricTable().FabricCount());
