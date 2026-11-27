@@ -120,12 +120,12 @@ Ours:
 
 Only the Core 300S has been run. If you flash a 200S, 400S or 600S, open an issue with the output of `./tools/log.sh` whether it worked or not. The first status frame is in there, and that is what a model fix needs. A build with `CONFIG_LEVOIT_LOG_FRAMES=y` logs every frame, which is better still.
 
-`./components/levoit_matter/host_test/run.sh` has to pass. A change to the protocol code comes with a captured frame in the tests.
+`./components/levoit_matter/host_test/run.sh` has to pass; it fetches [tuct/levoit](https://github.com/tuct/levoit)'s core and checks the mapping against it. Protocol changes go to [tuct/levoit](https://github.com/tuct/levoit) with a captured frame.
 
 ## Credits
 
 The serial protocol comes from [tuct/levoit](https://github.com/tuct/levoit) and [mulcmu/esphome-levoit-core300s](https://github.com/mulcmu/esphome-levoit-core300s). Their captures are the test vectors for the models we cannot test ourselves.
 
-What we found on a Core 300S with controller 1.0.0 went back to tuct/levoit: the 19-byte status and the status request are merged ([#140](https://github.com/tuct/levoit/pull/140), [#141](https://github.com/tuct/levoit/pull/141)).
+This firmware started standalone, with its own reverse-engineered copy of the protocol. That work went back to [tuct/levoit](https://github.com/tuct/levoit) and the two now share one protocol core, which this firmware pulls in and maps to Matter. What we found on a Core 300S with controller 1.0.0 — the 19-byte status, the status request, the panel filter reset, the On/Off hold, plasma — is merged there ([#140](https://github.com/tuct/levoit/pull/140)–[#144](https://github.com/tuct/levoit/pull/144)).
 
 MIT. See [LICENSE](LICENSE).

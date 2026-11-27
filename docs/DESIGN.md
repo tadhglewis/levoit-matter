@@ -56,8 +56,9 @@ Why it looks like this:
 
 | Part | Job |
 |---|---|
-| `components/levoit` | The purifier, with no Matter in it. Framing, the model table, the UART task, mapping purifier state to Matter values, filter maths. |
-| `main/purifier` | Owns purifier state. Turns requests into commands, counts filter use, handles the reset hold, drives the lights. |
+| `levoit` (dependency) | [tuct/levoit](https://github.com/tuct/levoit)'s protocol core: framing, every model's status decoder and command builder, filter tracking. Pulled in by the component manager. |
+| `components/levoit_matter` | The purifier side, no Matter cluster code. The UART transport (acknowledge, retry, pacing), the bridge to the core, and mapping purifier state to Matter values. |
+| `main/purifier` | Owns purifier state. Turns requests into commands, handles the reset hold, drives the lights. |
 | `main/matter_setup` | Builds the endpoints, turns controller writes into requests, pushes state into the clusters. |
 | `main/ota` | Update, log and filter endpoints, and the check that decides whether a new image stays. |
 | `main/commissionable_data` | Reads the setup code verifier from the factory partition. |
@@ -101,17 +102,17 @@ sequenceDiagram
 
 ## Models
 
-The UART protocol comes from [tuct/levoit](https://github.com/tuct/levoit)'s shared core, pulled in by the ESP-IDF component manager (`components/levoit_matter/idf_component.yml`): framing, acknowledgements, every model's status decoder and command builder, and filter tracking. This firmware maps the core's state to Matter.
+This firmware started standalone, with its own copy of the Levoit UART protocol reverse-engineered from a Core 300S. That protocol work went upstream to [tuct/levoit](https://github.com/tuct/levoit), the established open-source Levoit driver, and the two now share one core: tuct/levoit owns the protocol, this firmware pulls it in and maps it to Matter. A private decoder became a component anyone can build on.
 
-What is model-specific here is one row in `components/levoit/src/purifier_model.cpp`: name, speed count, airflow, Auto and PM2.5. A new Core model is a row and a Kconfig entry. Vital, Sprout, EverestAir and Eleva need their own mode mapping (see the Matter data model note on fan modes), and the ESP32-C3 boards another build: https://github.com/tadhglewis/levoit-matter/issues/7.
+So the protocol — framing, acknowledgements, every model's status decoder and command builder, filter tracking — lives in [tuct/levoit](https://github.com/tuct/levoit), pulled in by the ESP-IDF component manager (`components/levoit_matter/idf_component.yml`). This firmware maps the core's state to Matter.
+
+Nothing model-specific is kept here. The build picks a model (Kconfig), tells the core its name once, and reads the rest back from the core — speed count, Auto, air quality, display name; `ModelSpec` is just that runtime view. Adding a Core model is a Kconfig entry. Supported: Core 200S/300S/400S/600S, Sprout and EverestAir. Vital and Eleva need an ESP32-C3 build ([#7](https://github.com/tadhglewis/levoit-matter/issues/7)).
 
 ## Filter life
 
-The purifier does not track it. Stock firmware did, on the ESP32, which is why a freshly flashed purifier reads 100%.
+The purifier's controller does not report it. Stock firmware tracked it on the ESP32, which is why a freshly flashed purifier reads 100%.
 
-Each minute the firmware adds the model's airflow scaled by the current speed, with Sleep counted as 63% of speed 1. Filter life is what remains of six months at full speed. The count is saved every 30 minutes and when the purifier turns off.
-
-Holding Sleep for three seconds clears it, as on stock. `tools/filter.sh` sets it to any value.
+The [core](https://github.com/tuct/levoit) tracks it: each minute it adds the model's airflow scaled by the current speed (Sleep counted as 63% of speed 1), against six months at full speed, and persists the count. This firmware reads the result (`FILTER_LIFE_LEFT`) and maps it to the HEPA filter cluster. Holding Sleep for three seconds clears it, as on stock. `tools/filter.sh` sets it to any value, through the core's set-percent.
 
 ## Pairing and reset
 
@@ -150,7 +151,7 @@ A new image stays only if, within two minutes of booting, the network is up, the
 
 ## Tests
 
-`components/levoit_matter/host_test/run.sh` runs on the build machine. It covers framing, decoding for each model, the mapping rules and the filter maths, using frames captured from real purifiers where we have them.
+`components/levoit_matter/host_test/run.sh` runs on the build machine. It fetches the [core](https://github.com/tuct/levoit) at the pinned commit and drives it with captured frames, checking the bridge and the Matter mapping — fan modes, speeds, air quality, filter percent — against what the core reports. The protocol itself, framing and decoding and commands, is tested in [tuct/levoit](https://github.com/tuct/levoit).
 
 `tools/mcu_sim.py` plays the purifier's controller on a serial port.
 
@@ -264,13 +265,13 @@ We have not watched offset 9 rise in auto. The reading matches mulcmu's notes on
 
 **Two display bytes.** With the display set to off, any button lights the backlight for three seconds. Offset 7 goes to `64` and back. Offset 8 stays `00`. Read offset 8. We read offset 7 first. Back when the reset counted display changes, three button presses with the display off would have factory-reset the purifier.
 
-**Status request is `01 33 40`.** This controller acknowledges the documented `01 31 40` with an empty payload. The stock firmware names `01 33 40` as `purifier_uart_query_device_status`, and the reply is an acknowledgement carrying the 19-byte status. The firmware sends `01 33 40` every 5 s while no status has arrived.
+**Status request is `01 33 40`.** This controller acknowledges the documented `01 31 40` with an empty payload. The stock firmware names `01 33 40` as `purifier_uart_query_device_status`, and the reply is an acknowledgement carrying the 19-byte status. The [core](https://github.com/tuct/levoit) asks for it at boot, repeating until the controller answers (about 50 ms here).
 
 **Status is pushed once a minute and on every change.** Other people's captures show it several times a second.
 
 **Version 1.0.0 is not "old".** tuct lists controller versions 2.0.7 and 2.0.11 as tested on the 300S, both on the 18-byte status. Ours reports 1.0.0 beside a stock ESP32 image from February 2025, on a UAE-region unit (LAP-C302S-WGC). So this is a different controller line, not an earlier one.
 
-The raw frames behind all of this, both directions, are in [`status_32_40.txt`](https://github.com/tuct/levoit/blob/main/devices/levoit-core300s/uart/status_32_40.txt) in tuct/levoit. The decoder ([#140](https://github.com/tuct/levoit/pull/140)) and the status request ([#141](https://github.com/tuct/levoit/pull/141)) are merged there. The panel filter reset ([#142](https://github.com/tuct/levoit/pull/142)), the On/Off hold ([#143](https://github.com/tuct/levoit/pull/143)) and plasma ([#144](https://github.com/tuct/levoit/pull/144)) are open.
+The raw frames behind all of this, both directions, are in [`status_32_40.txt`](https://github.com/tuct/levoit/blob/main/devices/levoit-core300s/uart/status_32_40.txt) in tuct/levoit. It is all merged into [tuct/levoit](https://github.com/tuct/levoit): the decoder ([#140](https://github.com/tuct/levoit/pull/140)), the status request ([#141](https://github.com/tuct/levoit/pull/141)), the panel filter reset ([#142](https://github.com/tuct/levoit/pull/142)), the On/Off hold ([#143](https://github.com/tuct/levoit/pull/143)) and plasma ([#144](https://github.com/tuct/levoit/pull/144)).
 
 **Button hold, `01 02 D1`.** Sent when On/Off is held. The Wi-Fi symbol above it is a light; the manual lists no Wi-Fi button (page 4). Payload `02` when the hold registers, a few seconds in, and `03` on release. Stock firmware logs it as "netcfg is start".
 
