@@ -1,0 +1,1240 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Purifier Teardown</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* Layout: single scroll, generous left rail of section numbers, hex/mono for protocol evidence */
+  :root {
+    --bg: #f4f2ee;
+    --surface: #fbfaf8;
+    --ink: #1b1a17;
+    --ink-soft: #55514a;
+    --line: #ddd8cf;
+    --accent: #c2471f;      /* oxide orange, the purifier's own warning-light hue */
+    --accent-soft: #e8dccf;
+    --wire-mcu: #d98324;    /* MCU side */
+    --wire-esp: #2f6f6a;    /* ESP side */
+    --cloud: #8a8378;
+    --good: #2f7d4f;
+    --bad: #b53a2a;
+    --code-bg: #1c1b18;
+    --code-ink: #e7e3da;
+    --code-dim: #8f897d;
+    --font-head: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141310;
+      --surface: #1e1c18;
+      --ink: #efece4;
+      --ink-soft: #a9a398;
+      --line: #322e28;
+      --accent: #f0683b;
+      --accent-soft: #3a2a20;
+      --wire-mcu: #e0952f;
+      --wire-esp: #58b3ab;
+      --cloud: #8a8378;
+      --good: #57b47b;
+      --bad: #e4705f;
+      --code-bg: #0e0d0b;
+      --code-ink: #e7e3da;
+      --code-dim: #807a6e;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141310;
+    --surface: #1e1c18;
+    --ink: #efece4;
+    --ink-soft: #a9a398;
+    --line: #322e28;
+    --accent: #f0683b;
+    --accent-soft: #3a2a20;
+    --wire-mcu: #e0952f;
+    --wire-esp: #58b3ab;
+    --cloud: #8a8378;
+    --good: #57b47b;
+    --bad: #e4705f;
+    --code-bg: #0e0d0b;
+    --code-ink: #e7e3da;
+    --code-dim: #807a6e;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    line-height: 1.6;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 860px;
+    margin: 0 auto;
+    padding-left: max(20px, env(safe-area-inset-left, 0px));
+    padding-right: max(20px, env(safe-area-inset-right, 0px));
+  }
+
+  h1, h2, h3 { font-family: var(--font-head); font-weight: 600; line-height: 1.12; text-wrap: balance; }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  code { font-family: var(--font-mono); font-size: 0.86em; }
+  p { max-width: 68ch; }
+
+  /* Hero */
+  .hero {
+    margin-top: calc(-1 * env(safe-area-inset-top, 0px));
+    padding-top: calc(env(safe-area-inset-top, 0px) + 4.5rem);
+    padding-bottom: 3.5rem;
+    background:
+      radial-gradient(120% 90% at 85% 0%, var(--accent-soft) 0%, transparent 55%),
+      var(--bg);
+    border-bottom: 1px solid var(--line);
+  }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 1.1rem;
+  }
+  .hero h1 { font-size: clamp(2.2rem, 7vw, 3.6rem); margin: 0 0 1.2rem; letter-spacing: -0.02em; }
+  .hero .lede { font-size: clamp(1.05rem, 2.6vw, 1.3rem); color: var(--ink-soft); max-width: 60ch; }
+  .hero .spec {
+    display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem;
+    margin-top: 2rem; font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink-soft);
+  }
+  .hero .spec b { color: var(--ink); font-weight: 500; }
+
+  /* Sections */
+  section { padding: 3.6rem 0; border-bottom: 1px solid var(--line); }
+  .sec-num {
+    font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.2em;
+    color: var(--accent); text-transform: uppercase;
+  }
+  section h2 { font-size: clamp(1.6rem, 4.2vw, 2.2rem); margin: 0.6rem 0 1.4rem; letter-spacing: -0.01em; }
+  section h3 { font-size: 1.12rem; margin: 2.2rem 0 0.6rem; }
+  section p + p { margin-top: 0.9rem; }
+
+  .pull { font-size: 1.15rem; color: var(--ink); border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1.8rem 0; max-width: 60ch; }
+
+  /* Cards / grids */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1.6rem 0; }
+  @media (max-width: 620px) { .grid2 { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 1.2rem 1.3rem;
+  }
+  .card h4 { font-family: var(--font-head); margin: 0 0 0.5rem; font-size: 1rem; }
+  .card p { font-size: 0.92rem; color: var(--ink-soft); margin: 0; }
+
+  .chip-head { display: flex; align-items: center; gap: 0.55rem; margin: 0 0 0.6rem; font-family: var(--font-head); font-weight: 600; }
+  .dot { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .dot.mcu { background: var(--wire-mcu); }
+  .dot.esp { background: var(--wire-esp); }
+
+  /* Code blocks */
+  .code {
+    background: var(--code-bg); color: var(--code-ink); border-radius: 10px;
+    padding: 1rem 1.1rem; margin: 1.4rem 0; overflow-x: auto;
+    font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.7;
+    white-space: pre;
+  }
+  .code .c { color: var(--code-dim); }
+  .code .o { color: var(--wire-mcu); }
+  .code .i { color: var(--wire-esp); }
+  .code .hl { color: var(--accent); }
+  .code .lbl { color: var(--code-dim); font-style: normal; }
+
+  /* Byte map */
+  .frame { display: flex; flex-wrap: wrap; gap: 12px 8px; margin: 1.6rem 0; align-items: flex-start; }
+  .fgrp { display: flex; flex-direction: column; gap: 5px; }
+  .fbytes { display: flex; gap: 3px; justify-content: center; }
+  .fbytes b { display: grid; place-items: center; min-width: 36px; height: 36px; padding: 0 5px; border-radius: 6px;
+    font-family: var(--font-mono); font-weight: 600; font-size: 0.84rem; border: 1px solid var(--line);
+    background: var(--surface); color: var(--ink); }
+  .fgrp > span { font-family: var(--font-body); font-size: 0.66rem; line-height: 1.25; text-align: center;
+    color: var(--ink-soft); max-width: 96px; margin: 0 auto; }
+  .fgrp.hdr b { background: var(--bg); color: var(--ink-soft); }
+  .fgrp.cmd b { background: var(--accent-soft); border-color: var(--accent); }
+  .fgrp.key b { border-color: var(--accent); border-width: 2px; }
+  .fgrp.key > span { color: var(--accent); font-weight: 600; }
+  .fgrp.mut b { opacity: 0.45; }
+  .fgrp.mut > span { opacity: 0.7; }
+
+  /* Tables */
+  .tbl-scroll { overflow-x: auto; margin: 1.4rem 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.86rem; min-width: 440px; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-family: var(--font-mono); font-weight: 500; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-soft); }
+  td code { color: var(--accent); }
+  tbody tr:last-child td { border-bottom: none; }
+
+  /* Callout */
+  .callout {
+    background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    border-radius: 10px; padding: 1.3rem 1.4rem; margin: 1.8rem 0;
+  }
+  .callout.privacy { border-left-color: var(--good); }
+  .callout h4 { font-family: var(--font-head); margin: 0 0 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+  .callout p { margin: 0.5rem 0 0; font-size: 0.95rem; }
+
+  /* Timeline for the OTA saga */
+  .steps { margin: 1.8rem 0; display: flex; flex-direction: column; gap: 0; }
+  .step { display: grid; grid-template-columns: auto 1fr; gap: 1rem; padding-bottom: 1.5rem; position: relative; }
+  .step:not(:last-child)::before { content: ""; position: absolute; left: 13px; top: 28px; bottom: 0; width: 2px; background: var(--line); }
+  .step .marker {
+    width: 28px; height: 28px; border-radius: 50%; flex: none; display: grid; place-items: center;
+    font-family: var(--font-mono); font-size: 0.78rem; font-weight: 600; z-index: 1;
+    border: 2px solid var(--line); background: var(--surface); color: var(--ink-soft);
+  }
+  .step.fail .marker { border-color: var(--bad); color: var(--bad); }
+  .step.win .marker { border-color: var(--good); color: var(--good); background: var(--good); color: #fff; }
+  .step h4 { font-family: var(--font-head); margin: 0.15rem 0 0.3rem; font-size: 1.02rem; }
+  .step p { margin: 0; font-size: 0.92rem; color: var(--ink-soft); }
+  .step .verdict { font-family: var(--font-mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 0.4rem; display: inline-block; }
+  .step.fail .verdict { color: var(--bad); }
+  .step.win .verdict { color: var(--good); }
+
+  .tag { display: inline-block; font-family: var(--font-mono); font-size: 0.7rem; padding: 0.12rem 0.5rem; border-radius: 5px; background: var(--accent-soft); color: var(--accent); letter-spacing: 0.04em; }
+
+  figure { margin: 1.8rem 0; }
+  figcaption { font-size: 0.8rem; color: var(--ink-soft); margin-top: 0.7rem; line-height: 1.5; }
+  svg { max-width: 100%; height: auto; display: block; }
+  figure img { width: 100%; height: auto; display: block; border-radius: 10px; border: 1px solid var(--line); }
+  .photo-annot { position: relative; line-height: 0; }
+  .photo-annot svg.annot { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .grid2 figure { margin: 0; }
+  .grid2 figure figcaption { font-size: 0.78rem; margin-top: 0.5rem; }
+
+  .prs { display: flex; flex-wrap: wrap; gap: 0.55rem; margin: 0.7rem 0 0; }
+  .prs a { font-family: var(--font-mono); font-size: 0.78rem; padding: 0.35rem 0.75rem; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); text-decoration: none; }
+  .prs a:hover { border-color: var(--accent); }
+  .prs a b { color: var(--ink); font-weight: 600; }
+  .prs a::before { content: "●"; margin-right: 0.45rem; font-size: 0.72em; vertical-align: middle; color: var(--good); }
+  .prs a.open::before { color: var(--accent); }
+  .prs-legend { font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-soft); margin: 1.4rem 0 0; }
+  .prs-legend .dm { color: var(--good); }
+  .prs-legend .do { color: var(--accent); }
+
+  footer { padding: 3rem 0 4rem; color: var(--ink-soft); font-size: 0.88rem; }
+  footer a { font-family: var(--font-mono); font-size: 0.82rem; }
+  .foot-links { display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; margin-top: 1rem; }
+
+  .reveal { opacity: 1; }
+</style>
+
+<div class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Engineering teardown · Levoit Core 300S</p>
+    <h1>Taking the cloud out of a $100 air purifier</h1>
+    <p class="lede">How two chips inside the purifier talk to each other, what the factory firmware was
+      sending to a server overseas, and how I replaced it with firmware that never leaves the local
+      network.</p>
+    <div class="spec">
+      <span><b>Device</b> LAP-C302S-WGC (UAE unit)</span>
+      <span><b>Wi-Fi chip</b> ESP32-SOLO-1C</span>
+      <span><b>Controller</b> MCU fw 1.0.0</span>
+      <span><b>Result</b> Native Matter, no cloud</span>
+    </div>
+  </div>
+</div>
+
+<main class="wrap">
+
+  <!-- 1 -->
+  <section id="chips">
+    <span class="sec-num">01 — The hardware</span>
+    <h2>Two chips, one serial cable between them</h2>
+    <p>Inside are two chips, not one, on the same board, splitting the work.</p>
+
+    <div class="grid2">
+      <div class="card">
+        <div class="chip-head"><span class="dot mcu"></span>The MCU (controller)</div>
+        <p>Runs the actual appliance: the fan motor, the physical buttons, the display, the particle
+          sensor. It has no idea the internet exists. Reports its firmware as version 1.0.0. We never
+          touch it.</p>
+      </div>
+      <div class="card">
+        <div class="chip-head"><span class="dot esp"></span>The ESP32 (Wi-Fi)</div>
+        <p>An Espressif ESP32-SOLO-1C. Its entire job is the network side: talk to the cloud, relay
+          app commands to the MCU. It's a general-purpose, reflashable microcontroller. This is the
+          one we replace.</p>
+      </div>
+    </div>
+
+    <figure>
+      <div class="photo-annot">
+        <img src="img/teardown.jpg" alt="The purifier opened up, with the ESP32 Wi-Fi module, the MCU chip and the UART connector labelled on the board" loading="lazy">
+        <svg class="annot" viewBox="0 0 1200 1600" preserveAspectRatio="none" aria-hidden="true">
+          <style>
+            .pill { fill: rgba(12,12,12,0.82); }
+            .ttl { font-family: var(--font-head); font-weight: 600; fill: #fff; }
+            .sub { font-family: var(--font-body); fill: #d9d4c9; }
+          </style>
+          <!-- MCU -->
+          <g>
+            <line x1="862" y1="985" x2="900" y2="828" stroke="#e0952f" stroke-width="4"/>
+            <circle cx="862" cy="985" r="10" fill="#e0952f" stroke="#fff" stroke-width="3"/>
+            <rect x="712" y="720" width="440" height="108" rx="14" class="pill" stroke="#e0952f" stroke-width="3"/>
+            <text x="738" y="768" class="ttl" font-size="34">MCU · SC95F0816P</text>
+            <text x="738" y="804" class="sub" font-size="25">runs the fan, buttons, display</text>
+          </g>
+          <!-- appliance harness (white connector) -->
+          <g>
+            <line x1="578" y1="1000" x2="412" y2="930" stroke="#b7ad9d" stroke-width="4"/>
+            <circle cx="578" cy="1000" r="10" fill="#b7ad9d" stroke="#fff" stroke-width="3"/>
+            <rect x="40" y="862" width="372" height="78" rx="14" class="pill" stroke="#b7ad9d" stroke-width="3"/>
+            <text x="66" y="898" class="ttl" font-size="27">fan + sensor harness</text>
+            <text x="66" y="926" class="sub" font-size="22">motor, dust sensor, display</text>
+          </g>
+          <!-- serial / flashing pins -->
+          <g>
+            <line x1="580" y1="1345" x2="512" y2="1268" stroke="#f0683b" stroke-width="4"/>
+            <circle cx="580" cy="1345" r="10" fill="#f0683b" stroke="#fff" stroke-width="3"/>
+            <rect x="40" y="1168" width="476" height="104" rx="14" class="pill" stroke="#f0683b" stroke-width="3"/>
+            <text x="66" y="1210" class="ttl" font-size="28">serial pins · TX RX GND 3V3 IO0</text>
+            <text x="66" y="1246" class="sub" font-size="24">we held wires here to flash</text>
+          </g>
+          <!-- ESP32 -->
+          <g>
+            <line x1="700" y1="1300" x2="534" y2="1506" stroke="#58b3ab" stroke-width="4"/>
+            <circle cx="700" cy="1300" r="10" fill="#58b3ab" stroke="#fff" stroke-width="3"/>
+            <rect x="64" y="1486" width="470" height="104" rx="14" class="pill" stroke="#58b3ab" stroke-width="3"/>
+            <text x="90" y="1530" class="ttl" font-size="34">ESP32-SOLO-1C</text>
+            <text x="90" y="1566" class="sub" font-size="24">the Wi-Fi chip — we reflash this one</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption>The actual board. Two chips side by side: the MCU runs the appliance (through the
+        white harness connector to the motor and sensors), the ESP32 does the network. The row of pins
+        beside it is the serial header we held wires to for flashing and logs.</figcaption>
+    </figure>
+
+    <p>The two chips talk over that plain <b>UART serial line</b> at 115200 baud, the same kind of
+      connection you'd use to read debug output from any dev board. Nothing is encrypted between them,
+      because the manufacturer never expected anyone to be listening on a four-inch wire inside a
+      sealed case.</p>
+
+    <h3>Reverse engineering the dialect</h3>
+    <p>Normally, mapping an unknown wire like this means an <b>expensive logic analyser</b> clipped onto
+      the pins to record the traffic. Luckily, most of the Levoit protocol was <b>already open
+      source</b> — earlier work by <a href="https://github.com/tuct/levoit">tuct/levoit</a> and
+      <a href="https://github.com/mulcmu/esphome-levoit-core300s">mulcmu</a> had captured and documented
+      it. So I only had to do the firmware-based part: fill in the bits specific to my purifier's
+      controller.</p>
+
+    <figure>
+      <svg viewBox="0 0 700 186" role="img" aria-label="Usually you'd need an expensive logic analyser, but the protocol was already open source, so only firmware-based analysis was needed">
+        <defs>
+          <marker id="arl" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="currentColor"/></marker>
+        </defs>
+        <!-- usually: logic analyser -->
+        <text x="118" y="26" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink-soft)">usually: a logic analyser</text>
+        <rect x="53" y="44" width="130" height="72" rx="12" fill="var(--code-bg)" stroke="var(--line)" stroke-width="1.5"/>
+        <circle cx="69" cy="58" r="3.5" fill="#57b47b"/>
+        <text x="118" y="82" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="13" fill="#d7d2c6">LOGIC</text>
+        <text x="118" y="100" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="#8f897d">ANALYZER · 8ch</text>
+        <g stroke-width="2.4" fill="none">
+          <path d="M183 62 H243" stroke="#e4705f"/>
+          <path d="M183 78 H243" stroke="#e0952f"/>
+          <path d="M183 94 H243" stroke="#58b3ab"/>
+          <path d="M183 110 H243" stroke="#f0683b"/>
+        </g>
+        <text x="118" y="140" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="13" fill="var(--bad)">≈ a few hundred $</text>
+        <text x="118" y="158" text-anchor="middle" font-family="var(--font-body)" font-size="10.5" fill="var(--ink-soft)">to record the stock traffic</text>
+
+        <!-- bridge: already open source -->
+        <text x="350" y="64" text-anchor="middle" font-family="var(--font-body)" font-size="11.5" fill="var(--ink)">already open source</text>
+        <text x="350" y="104" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--accent)">tuct/levoit · mulcmu</text>
+        <g color="var(--ink-soft)"><line x1="268" y1="84" x2="432" y2="84" stroke="currentColor" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arl)"/></g>
+
+        <!-- so: firmware analysis -->
+        <text x="560" y="26" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--good)">so: just firmware work</text>
+        <rect x="448" y="52" width="172" height="62" rx="10" fill="var(--surface)" stroke="var(--wire-esp)" stroke-width="1.8"/>
+        <text x="534" y="80" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="12.5" fill="var(--ink)">ESP32 · my firmware</text>
+        <text x="534" y="99" text-anchor="middle" font-family="var(--font-body)" font-size="10" fill="var(--ink-soft)">logs frames over Wi-Fi</text>
+        <text x="534" y="140" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="13" fill="var(--good)">fill in the gaps · $0</text>
+        <text x="534" y="158" text-anchor="middle" font-family="var(--font-body)" font-size="10.5" fill="var(--ink-soft)">my controller's own quirks</text>
+      </svg>
+      <figcaption>A logic analyser reads the factory firmware's traffic without touching the chip. That groundwork was already shared, so I only had to log my own firmware's frames for the parts no one had documented.</figcaption>
+    </figure>
+
+    <p>The method: with the frames logging over Wi-Fi, do one thing and watch which byte moves:</p>
+
+    <figure>
+      <svg viewBox="0 0 700 290" role="img" aria-label="Diagram: capture the serial bytes two ways, do one action at a time, and watch which byte changes">
+        <defs>
+          <marker id="ard" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="currentColor"/></marker>
+        </defs>
+        <!-- the logged stream -->
+        <text x="30" y="60" font-family="var(--font-mono)" font-size="11" fill="var(--ink-soft)">the frames, logged</text>
+        <rect x="30" y="78" width="230" height="52" rx="9" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+        <text x="145" y="100" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="12.5" fill="var(--ink)">the full frame</text>
+        <text x="145" y="118" text-anchor="middle" font-family="var(--font-body)" font-size="10.5" fill="var(--ink-soft)">pushed on every change</text>
+        <g color="var(--ink-soft)" stroke-width="1.6">
+          <line x1="260" y1="103" x2="320" y2="103" stroke="currentColor" marker-end="url(#ard)"/>
+        </g>
+
+        <!-- do one action -->
+        <rect x="326" y="78" width="150" height="50" rx="9" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="401" y="100" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="12.5" fill="var(--ink)">do ONE thing</text>
+        <text x="401" y="117" text-anchor="middle" font-family="var(--font-body)" font-size="10.5" fill="var(--accent)">press one button</text>
+        <g color="var(--ink-soft)"><line x1="476" y1="103" x2="520" y2="103" stroke="currentColor" stroke-width="1.6" marker-end="url(#ard)"/></g>
+
+        <!-- which byte moved -->
+        <text x="585" y="54" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink-soft)">see which byte moved</text>
+        <g font-family="var(--font-mono)" font-size="12.5">
+          <text x="530" y="90" fill="var(--ink-soft)">speed 1 → 2</text>
+          <rect x="612" y="76" width="30" height="20" rx="4" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.3"/>
+          <text x="627" y="91" text-anchor="middle" fill="var(--accent)">02</text>
+          <text x="530" y="120" fill="var(--ink-soft)">sleep on</text>
+          <rect x="612" y="106" width="30" height="20" rx="4" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.3"/>
+          <text x="627" y="121" text-anchor="middle" fill="var(--accent)">01</text>
+        </g>
+
+        <!-- result -->
+        <rect x="150" y="205" width="400" height="56" rx="10" fill="var(--surface)" stroke="var(--good)" stroke-width="1.6"/>
+        <text x="350" y="230" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="13.5" fill="var(--ink)">that byte = that setting</text>
+        <text x="350" y="250" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--ink-soft)">repeat for every button → the whole protocol</text>
+        <g color="var(--ink-soft)"><line x1="350" y1="185" x2="350" y2="203" stroke="currentColor" stroke-width="1.6" marker-end="url(#ard)"/></g>
+      </svg>
+      <figcaption>Change one thing, and the byte that moves is the one that means it.</figcaption>
+    </figure>
+
+    <svg viewBox="0 0 700 96" role="img" aria-label="Either the firmware asks with 01 33 40 or a button press triggers it; both produce the same 19-byte reply" style="max-width:100%;height:auto;display:block;margin:1.4rem 0 0.4rem">
+      <defs>
+        <marker id="ars" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="currentColor"/></marker>
+      </defs>
+      <g font-family="var(--font-mono)" font-size="11.5">
+        <rect x="16" y="12" width="210" height="30" rx="8" fill="var(--surface)" stroke="var(--line)" stroke-width="1.4"/>
+        <text x="30" y="31" fill="var(--ink)">firmware asks · <tspan fill="var(--accent)">01 33 40</tspan></text>
+        <rect x="16" y="54" width="210" height="30" rx="8" fill="var(--surface)" stroke="var(--line)" stroke-width="1.4"/>
+        <text x="30" y="73" fill="var(--ink)">a button is pressed</text>
+      </g>
+      <g color="var(--ink-soft)" stroke-width="1.6">
+        <line x1="228" y1="27" x2="316" y2="42" stroke="currentColor" marker-end="url(#ars)"/>
+        <line x1="228" y1="69" x2="316" y2="54" stroke="currentColor" marker-end="url(#ars)"/>
+      </g>
+      <rect x="360" y="30" width="250" height="36" rx="9" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="485" y="53" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="13.5" fill="var(--ink)">the same 19-byte reply</text>
+    </svg>
+
+    <div class="frame">
+      <div class="fgrp hdr"><div class="fbytes"><b>A5</b></div><span>start</span></div>
+      <div class="fgrp hdr"><div class="fbytes"><b>12</b></div><span>type: ack</span></div>
+      <div class="fgrp hdr"><div class="fbytes"><b>10</b></div><span>counter</span></div>
+      <div class="fgrp hdr"><div class="fbytes"><b>17</b></div><span>length (23)</span></div>
+      <div class="fgrp hdr"><div class="fbytes"><b>41</b></div><span>checksum</span></div>
+      <div class="fgrp cmd"><div class="fbytes"><b>01</b><b>33</b><b>40</b></div><span>“status report”</span></div>
+      <div class="fgrp hdr"><div class="fbytes"><b>00</b><b>00</b><b>01</b></div><span>firmware 1.0.0</span></div>
+      <div class="fgrp key"><div class="fbytes"><b>01</b></div><span>power: on</span></div>
+      <div class="fgrp key"><div class="fbytes"><b>00</b></div><span>mode: manual</span></div>
+      <div class="fgrp key"><div class="fbytes"><b>01</b></div><span>fan speed: 1</span></div>
+      <div class="fgrp mut"><div class="fbytes"><b>00</b></div><span>reserved</span></div>
+      <div class="fgrp"><div class="fbytes"><b>64</b></div><span>backlight lit</span></div>
+      <div class="fgrp key"><div class="fbytes"><b>01</b></div><span>display: on</span></div>
+      <div class="fgrp"><div class="fbytes"><b>01</b></div><span>running speed</span></div>
+      <div class="fgrp"><div class="fbytes"><b>00</b></div><span>filter light</span></div>
+      <div class="fgrp key"><div class="fbytes"><b>01</b></div><span>air quality: good</span></div>
+      <div class="fgrp key"><div class="fbytes"><b>01</b><b>00</b></div><span>PM2.5: 1 µg/m³</span></div>
+      <div class="fgrp"><div class="fbytes"><b>01</b></div><span>child lock</span></div>
+      <div class="fgrp"><div class="fbytes"><b>00</b></div><span>auto profile</span></div>
+      <div class="fgrp"><div class="fbytes"><b>00</b><b>00</b></div><span>room size</span></div>
+      <div class="fgrp mut"><div class="fbytes"><b>00</b></div><span>reserved</span></div>
+    </div>
+    <p style="font-family:var(--font-mono);font-size:0.78rem;color:var(--ink-soft)">the raw bytes:
+      <span style="color:var(--ink)">A5 12 10 17 00 41 01 33 40 00 00 00 01 01 00 01 00 64 01 01 00 01 01 00 01 00 00 00 00</span></p>
+
+    <p>Because the panel pushes a frame on every change, Home always matches the physical buttons.</p>
+
+    <p>The 300S is the simple case — fixed byte offsets you index into. Writing settings, and the other
+      models, are harder (next section). One new thing from this unit: it runs MCU <b>1.0.0</b>, an
+      undocumented controller, so this 19-byte layout (an extra byte at offset 6) was unknown. We logged
+      it and sent it to <a href="https://github.com/tuct/levoit">tuct/levoit</a>.</p>
+  </section>
+
+  <!-- 2 -->
+  <section id="protocol">
+    <span class="sec-num">02 — The protocol</span>
+    <h2>One envelope, two completely different payloads</h2>
+    <p>Every Levoit uses the same <b>outer envelope</b>, but underneath, the models split into two
+      payload formats with almost nothing in common. Most of this was worked out across the open-source
+      <a href="https://github.com/tuct/levoit">tuct/levoit</a> project by disassembling the factory
+      firmware; our contribution was the Core 300S MCU 1.0.0 piece.</p>
+
+    <h3>The envelope everyone shares</h3>
+    <p>Eleven header bytes, then payload. The checksum and counter rules are the same on every model.</p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Byte</th><th>Field</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td><code>0</code></td><td>Start</td><td>Always <code>0xA5</code></td></tr>
+          <tr><td><code>1</code></td><td>Type</td><td><code>22</code> send · <code>12</code> ack · <code>52</code> ack (600S/Sprout)</td></tr>
+          <tr><td><code>2</code></td><td>Counter</td><td>Starts <code>0x10</code>, increments per packet; the MCU echoes it back in its ack</td></tr>
+          <tr><td><code>3</code></td><td>Length</td><td>Bytes after the checksum</td></tr>
+          <tr><td><code>5</code></td><td>Checksum</td><td><code>0xFF − (sum of every other byte &amp; 0xFF)</code></td></tr>
+          <tr><td><code>6–8</code></td><td>Command</td><td>Three bytes. Their <em>first</em> byte picks the protocol family</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The first command byte picks the family:</p>
+    <div class="grid2">
+      <div class="card">
+        <div class="chip-head"><span class="dot mcu"></span>Core family &nbsp;<code>cmd[0]=01</code></div>
+        <p>200S, 300S, 400S, 600S. Payload is <b>fixed fields at fixed byte offsets</b> — the 19-byte
+          status from section 1. Easy to read once you have the map. This is the 300S.</p>
+      </div>
+      <div class="card">
+        <div class="chip-head"><span class="dot esp"></span>Vital / Sprout &nbsp;<code>cmd[0]=02</code></div>
+        <p>Payload is a <b>flat stream of TLVs</b> (tag, length, value). Self-describing, so you have to
+          recover what each tag means and the rules between them. The harder case.</p>
+      </div>
+    </div>
+
+    <h3>Reading the TLVs has traps</h3>
+    <p>A Vital status push is 32 TLVs back to back, and they aren't in tag order — the MCU emits
+      <code>0x20</code> before <code>0x1F</code>, every time. So you parse in wire order, using each
+      TLV's own length byte, or you desync. That length byte also caught a bug in the community spec:
+      three fields it lists as one byte are actually 16-bit (quick-clean, white-noise and sleep
+      minutes).</p>
+
+    <h3>The write commands aren't on the wire</h3>
+    <p>Reading state is easy — you watch the MCU send it. Writing is the problem: to set a feature the
+      app sends a command, and for an obscure setting you may never capture one. The only complete
+      source is the factory firmware, so we <b>disassembled the stock ESP32 image</b> (Xtensa, from the
+      4 MB flash backup) to read how it builds frames.</p>
+    <p>Every command is built by one serializer function (recovered at <code>0x4200b568</code>). It packs
+      each field as a <b>tag · length · value</b> triplet:</p>
+
+    <figure>
+      <svg viewBox="0 0 700 220" role="img" aria-label="Diagram of the tag-length-value encoding and a worked example">
+        <!-- generic TLV -->
+        <g font-family="var(--font-head)" font-weight="600" font-size="15">
+          <rect x="40" y="36" width="150" height="56" rx="8" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+          <text x="115" y="60" text-anchor="middle" fill="var(--ink)">TAG</text>
+          <rect x="200" y="36" width="150" height="56" rx="8" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+          <text x="275" y="60" text-anchor="middle" fill="var(--ink)">LEN</text>
+          <rect x="360" y="36" width="300" height="56" rx="8" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="510" y="60" text-anchor="middle" fill="var(--ink)">VALUE</text>
+        </g>
+        <g font-family="var(--font-body)" font-size="11" fill="var(--ink-soft)">
+          <text x="115" y="80" text-anchor="middle">which field</text>
+          <text x="275" y="80" text-anchor="middle"># of bytes</text>
+          <text x="510" y="80" text-anchor="middle">that many bytes</text>
+        </g>
+
+        <text x="40" y="135" font-family="var(--font-mono)" font-size="11" fill="var(--ink-soft)">worked example</text>
+        <!-- example -->
+        <g font-family="var(--font-mono)" font-weight="600" font-size="16">
+          <rect x="40" y="146" width="80" height="44" rx="6" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.3"/>
+          <text x="80" y="174" text-anchor="middle" fill="var(--ink)">06</text>
+          <rect x="130" y="146" width="80" height="44" rx="6" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.3"/>
+          <text x="170" y="174" text-anchor="middle" fill="var(--ink)">02</text>
+          <rect x="220" y="146" width="140" height="44" rx="6" fill="var(--surface)" stroke="var(--line)" stroke-width="1.3"/>
+          <text x="290" y="174" text-anchor="middle" fill="var(--ink)">05 00</text>
+        </g>
+        <text x="385" y="166" font-family="var(--font-body)" font-size="13" fill="var(--ink-soft)">→</text>
+        <text x="405" y="165" font-family="var(--font-body)" font-size="13.5" fill="var(--ink)">field <tspan font-family="var(--font-mono)">0x06</tspan>, 2 bytes,</text>
+        <text x="405" y="183" font-family="var(--font-body)" font-size="13.5" fill="var(--ink)">value 5 &nbsp;=&nbsp; <tspan fill="var(--accent)">quick-clean timer = 5 min</tspan></text>
+      </svg>
+      <figcaption>Short form for values under 128 bytes; a flagged high bit switches to a two-byte length for anything longer. Chain the triplets and you have a command.</figcaption>
+    </figure>
+
+    <p>A second function, a dispatcher, tags each command with a 16-bit <b>key</b>
+      (<code>key = (cmd[2]&lt;&lt;8) | cmd[1]</code>). Read that key at every call site and the whole command
+      set falls out:</p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Key</th><th>Wire CMD</th><th>Feature</th></tr></thead>
+        <tbody>
+          <tr><td><code>0x5502</code></td><td><code>02 02 55</code></td><td>Fan mode + auto-mode preferences</td></tr>
+          <tr><td><code>0x5503</code></td><td><code>02 03 55</code></td><td>Fan speed</td></tr>
+          <tr><td><code>0x5504</code></td><td><code>02 04 55</code></td><td>Display</td></tr>
+          <tr><td><code>0x5511</code></td><td><code>02 11 55</code></td><td>Light detect</td></tr>
+          <tr><td><code>0x5140</code></td><td><code>02 40 51</code></td><td>Child lock</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Behaviour, not just bytes</h3>
+    <p>One write sets twelve settings at once, and a single byte in it (the "sleep type") gates the
+      other eleven:</p>
+
+    <figure>
+      <svg viewBox="0 0 700 290" role="img" aria-label="Diagram showing that when the gate byte is zero the MCU acknowledges success but drops eleven of twelve fields">
+        <defs>
+          <marker id="arg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="currentColor"/></marker>
+        </defs>
+        <!-- input -->
+        <rect x="250" y="20" width="200" height="54" rx="9" fill="var(--surface)" stroke="var(--ink-soft)" stroke-width="1.5"/>
+        <text x="350" y="42" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="14" fill="var(--ink)">write all 12 settings</text>
+        <text x="350" y="61" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink-soft)">gate byte + 11 others</text>
+
+        <!-- branches -->
+        <g color="var(--ink-soft)">
+          <path d="M310 74 L150 108" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#arg)"/>
+          <path d="M390 74 L550 108" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#arg)"/>
+        </g>
+
+        <!-- LEFT: gate = 0 -->
+        <text x="150" y="128" text-anchor="middle" font-family="var(--font-mono)" font-size="12" fill="var(--bad)">gate = 00</text>
+        <rect x="30" y="140" width="240" height="120" rx="10" fill="var(--surface)" stroke="var(--bad)" stroke-width="1.5"/>
+        <text x="150" y="166" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="14" fill="var(--good)">✓ MCU acks “success”</text>
+        <text x="150" y="192" text-anchor="middle" font-family="var(--font-body)" font-size="12.5" fill="var(--ink)">but applies 1 field…</text>
+        <text x="150" y="214" text-anchor="middle" font-family="var(--font-body)" font-size="12.5" fill="var(--bad)">…and <b>silently drops 11</b></text>
+        <text x="150" y="242" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink-soft)">looks like it worked. didn’t.</text>
+
+        <!-- RIGHT: gate != 0 -->
+        <text x="550" y="128" text-anchor="middle" font-family="var(--font-mono)" font-size="12" fill="var(--good)">gate = 01</text>
+        <rect x="430" y="140" width="240" height="120" rx="10" fill="var(--surface)" stroke="var(--good)" stroke-width="1.5"/>
+        <text x="550" y="166" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="14" fill="var(--good)">✓ MCU acks “success”</text>
+        <text x="550" y="198" text-anchor="middle" font-family="var(--font-body)" font-size="12.5" fill="var(--ink)">and applies all 12</text>
+        <text x="550" y="226" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink-soft)">the gate is unlocked</text>
+      </svg>
+      <figcaption>Same "success" ack both ways — so you can't tell from the response that your writes vanished. Found only by disassembling the handler and confirming on-device.</figcaption>
+    </figure>
+
+    <p>And two more traps from the same work: the "presets" share one field set (switching profiles
+      doesn't restore old values), and a write's tags don't match the status tags you read — they're
+      offset by <code>0x14</code>, so the obvious guess produces a frame that's acked and ignored.</p>
+
+    <p class="pull">The frame envelope takes an afternoon. The behaviour — gates, shared storage, offset
+      tags, a spec that's subtly wrong — is weeks.</p>
+  </section>
+
+  <!-- 3 -->
+  <section id="cloud">
+    <span class="sec-num">03 — The old path</span>
+    <h2>Pressing a button used to be a round trip to a data centre</h2>
+    <p>On the factory firmware, turning the fan up in the app did not talk to the purifier. It talked
+      to a server, which talked to the purifier. Here is the whole chain for one tap.</p>
+
+    <figure>
+      <svg viewBox="0 0 700 260" role="img" aria-label="Diagram: phone to VeSync cloud to device, with analytics flowing up">
+        <defs>
+          <marker id="ar2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="currentColor"/></marker>
+        </defs>
+        <!-- phone -->
+        <rect x="20" y="95" width="120" height="70" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+        <text x="80" y="126" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="14" fill="var(--ink)">VeSync</text>
+        <text x="80" y="144" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--ink-soft)">phone app</text>
+        <!-- cloud -->
+        <ellipse cx="350" cy="80" rx="95" ry="48" fill="var(--surface)" stroke="var(--cloud)" stroke-width="1.5"/>
+        <text x="350" y="72" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="14" fill="var(--ink)">VeSync cloud</text>
+        <text x="350" y="90" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-soft)">MQTT over TLS</text>
+        <text x="350" y="104" text-anchor="middle" font-family="var(--font-body)" font-size="10" fill="var(--ink-soft)">account required</text>
+        <!-- device -->
+        <rect x="560" y="95" width="120" height="70" rx="10" fill="var(--surface)" stroke="var(--wire-esp)" stroke-width="1.5"/>
+        <text x="620" y="126" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="14" fill="var(--ink)">purifier</text>
+        <text x="620" y="144" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--ink-soft)">ESP32</text>
+        <!-- command path -->
+        <g color="var(--accent)">
+          <path d="M140 118 Q250 118 268 100" fill="none" stroke="currentColor" stroke-width="2" marker-end="url(#ar2)"/>
+          <path d="M432 100 Q540 118 556 124" fill="none" stroke="currentColor" stroke-width="2" marker-end="url(#ar2)"/>
+        </g>
+        <text x="350" y="150" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--accent)">1. "set fan to 2"</text>
+        <!-- analytics path up -->
+        <g color="var(--cloud)">
+          <path d="M560 150 Q470 200 432 118" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ar2)"/>
+        </g>
+        <text x="470" y="225" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--cloud)">2. air quality · usage · logs ↑</text>
+      </svg>
+      <figcaption>Every command detoured through the cloud, and the device uploaded on its own schedule the whole time.</figcaption>
+    </figure>
+
+    <p>I pulled the strings straight out of the stock firmware image. The device opens an authenticated
+      TLS connection to a VeSync MQTT broker (<code>Connected to mqtts://%s:%d</code>) and subscribes
+      to a per-device topic. Commands arrive as JSON over that channel. Nothing works without a VeSync
+      account and a live internet connection.</p>
+
+    <h3>What it was sending back up</h3>
+    <p>The traffic going the <em>other</em> way: the firmware has a whole
+      telemetry pipeline. These are real function and field names lifted from the binary:</p>
+
+    <div class="grid2">
+      <div class="card">
+        <h4><code>uploadAirPurifierData</code></h4>
+        <p>Periodic report: fan speed, total used time, total "clean air" volume, and a timestamped
+          PM2.5 air-quality series.</p>
+      </div>
+      <div class="card">
+        <h4><code>historydata</code> partition</h4>
+        <p>A dedicated flash region storing rows of <code>ts · pm25_val · mode · fan_speed</code> — a
+          local air-quality log, batched and uploaded.</p>
+      </div>
+      <div class="card">
+        <h4><code>deviceLogReport</code></h4>
+        <p>Device-side diagnostic logs shipped to the cloud. There's no API to read your own logs
+          back, only to send them.</p>
+      </div>
+      <div class="card">
+        <h4><code>setRegion</code> · <code>deviceRegion AE</code></h4>
+        <p>The unit is pinned to a region (UAE). The firmware literally names itself
+          <code>VS_WFON_APR_LAP-C302S-WGC_AE</code>.</p>
+      </div>
+    </div>
+
+    <p class="pull">You bought a fan. To use it from your phone, you had to hand a company a continuous
+      record of your home's air, tied to an account, on a server you can't see.</p>
+
+    <div class="callout privacy">
+      <h4>Why local-only</h4>
+      <p>The replacement firmware has no cloud, no MQTT broker, no account, no telemetry partition. It
+        speaks Matter directly to Apple Home over your own Wi-Fi and stops there. The air-quality
+        numbers never leave the house. The binary contains no secrets and one build runs on every
+        unit of a model. Nothing phones home because there's no home to phone.</p>
+    </div>
+
+    <h3>What else the backup turned up</h3>
+    <p>I kept a full copy of the original firmware before replacing it. Reading it statically, it does
+      a lot more than relay fan commands:</p>
+
+    <div class="grid2">
+      <div class="card">
+        <h4>An air-quality black box</h4>
+        <p>A dedicated 256&nbsp;KiB flash partition stores timestamped rows of PM2.5, mode, fan speed and
+          cumulative runtime, then batches them to the cloud. A rolling record of the air in your room.</p>
+      </div>
+      <div class="card">
+        <h4>Two locks on the door</h4>
+        <p>Commands aren't just TLS-encrypted, they're encrypted again underneath with AES and signed,
+          and the device pins the vendor's own certificate. This is why impersonating the cloud was
+          hopeless — it was never the weak point.</p>
+      </div>
+      <div class="card">
+        <h4>A dormant debug server</h4>
+        <p>Flip one provisioning flag and the firmware opens a local network port that pipes straight
+          into its own full command set — firmware updates included — with no cloud, password or
+          certificate. Off by default; on this unit it never opened.</p>
+      </div>
+      <div class="card">
+        <h4>It can reflash its own appliance chip</h4>
+        <p>The Wi-Fi chip can push new firmware to the MCU over that same internal serial line — a whole
+          download protocol aimed at the controller that runs the motor.</p>
+      </div>
+      <div class="card">
+        <h4>A hidden factory test mode</h4>
+        <p>A full production-line self-test is still in the shipping firmware, and it calls out to a
+          separate server in another country — baked in even on this UAE unit.</p>
+      </div>
+      <div class="card">
+        <h4>Leftovers in the certificates</h4>
+        <p>The embedded certificates carry internal developer email addresses, and the Wi-Fi password
+          turns up in cleartext on the debug log path.</p>
+      </div>
+    </div>
+    <p style="font-size:0.85rem;color:var(--ink-soft)">Static analysis of our own device's firmware
+      backup. The debug-server and update paths were traced but never used to flash this unit — that's
+      what the next section is about.</p>
+  </section>
+
+  <!-- 3 -->
+  <section id="ota">
+    <span class="sec-num">04 — The detour</span>
+    <h2>The two-day fight to flash it without opening the case</h2>
+    <p>Replacing the firmware eventually meant opening the purifier and soldering five wires to flash
+      the ESP32 over serial. Once. But I didn't want to open it, so I spent a while trying to get custom
+      firmware on <em>over the air</em> instead. Every door turned out to be locked.</p>
+    <p class="tag">All of this was on my own device, on my own network.</p>
+
+    <p>The core problem: to flash over the air, I had to get the purifier to
+      download my image. The factory had two plausible delivery paths, and I tried both.</p>
+
+    <div class="steps">
+      <div class="step fail">
+        <div class="marker">A</div>
+        <div>
+          <h4>Hijack the real cloud OTA</h4>
+          <p>Let VeSync's own cloud issue the firmware-update command over its trusted channel, then
+            redirect the plaintext HTTP download to my server. Problem: VeSync has <b>no ESP32 firmware
+            update on file for this UAE model at all</b>. There was nothing to hijack.</p>
+          <span class="verdict">Closed — no update exists to intercept</span>
+        </div>
+      </div>
+      <div class="step fail">
+        <div class="marker">B</div>
+        <div>
+          <h4>Impersonate the cloud broker (MITM)</h4>
+          <p>I control provisioning, so I pointed the device at my own MQTT broker and tried to <em>be</em>
+            the cloud. The device dialled my server, spoke TLS, and then rejected my certificate. The
+            firmware <b>pins VeSync's private certificate authority</b>. It ships the CA certs but not
+            the private key, so I can't mint a certificate it trusts. Even the vendor's own spare key
+            is a leaf that expired in 2019.</p>
+          <span class="verdict">Closed — certificate pinning + mutual TLS</span>
+        </div>
+      </div>
+      <div class="step win">
+        <div class="marker">✓</div>
+        <div>
+          <h4>Trick the cloud into pointing the device at my laptop</h4>
+          <p>A partial breakthrough. The cloud's firewall blocks raw private IPs, but it accepts a
+            hostname. Using the dash-form <code>192-168-86-182.nip.io</code> (a real name that resolves
+            to my LAN) I got the cloud to relay a firmware command, and <b>the purifier made a real
+            HTTP GET to my laptop.</b> It was fetching my file. The
+            <a href="https://github.com/tuct/levoit/issues/76#issuecomment-7138652828">full write-up of
+            this step is here</a>.</p>
+          <span class="verdict">The device downloaded from me</span>
+        </div>
+      </div>
+      <div class="step fail">
+        <div class="marker">✕</div>
+        <div>
+          <h4>…and it bailed after ~132 KB, every time</h4>
+          <p>The download started but the device slammed the socket shut at a hard ceiling, far short
+            of the ~960 KB image. I varied every field it could possibly check — model string, hardware
+            rev, version, region, even the genuine vendor image — and it refused identically in about
+            60 ms. The update routine rejects the transfer for an internal reason the device only
+            writes to its serial log. The one channel I was trying to avoid.</p>
+          <span class="verdict">Closed — needs the serial log to see why</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <h4>The irony</h4>
+      <p>The OTA image itself is <b>unsigned</b> — MD5 checksum only, Secure Boot off. If any download
+        had ever completed, my firmware would have flashed and run. The security that stopped me wasn't
+        protecting the image. It was the certificate pinning and the missing cloud record, both
+        accidents of this being an obscure regional SKU the vendor never shipped an update for. The
+        lock on the door was real; there was nothing behind it.</p>
+    </div>
+
+    <p>With every software route dead, I opened the case and flashed the ESP32 over serial. The board
+      exposes exactly the five pads you need —
+      <code>TXD0</code>, <code>RXD0</code>, <code>GND</code>, <code>+3V3</code> and <code>IO0</code> —
+      so it's a USB-to-serial adapter, five wires, and a flash command.</p>
+
+    <div class="grid2">
+      <figure>
+        <img src="img/pads.jpg" alt="Macro close-up of the ESP32 programming pads, labelled TXD0, RXD0, GND, +3V3, IO0 and EN" loading="lazy">
+        <figcaption>The programming pads, labelled right on the silkscreen. Ground <code>IO0</code> at power-on to drop into the bootloader.</figcaption>
+      </figure>
+      <figure>
+        <img src="img/flash-rig.jpg" alt="A PL2303 USB-to-UART adapter wired to the purifier board for flashing" loading="lazy">
+        <figcaption>The whole rig: a PL2303 USB-UART board into the five pads. Back up the stock image first, then flash.</figcaption>
+      </figure>
+    </div>
+
+    <p>Except it wasn't ten minutes. My soldering iron chose that day to die.</p>
+
+    <div class="grid2">
+      <figure>
+        <img src="img/holding.jpg" alt="Holding bare jumper wires pressed against the board's pads by hand, with no solder" loading="lazy">
+        <figcaption>No iron, so this is me pinching five jumper wires onto the pads <b>by hand</b> for the length of a full flash. One twitch drops the connection.</figcaption>
+      </figure>
+      <div class="card" style="align-self:center">
+        <h4>So I made the software tolerate it</h4>
+        <p>A hand-held contact can't hold steady long enough to stream a 4&nbsp;MB backup in one go.
+          So before touching the board I wrote the backup-and-flash tooling to <b>chunk the transfer and
+          retry around dropped connections</b>, picking up where it left off. That flaky-connection
+          handling is the only reason a wobbling hand ever completed a full dump.</p>
+      </div>
+    </div>
+
+    <p>Reversible in the end: the original firmware is backed up, and the same pads flash it right back.
+      The over-the-air attempt is written up in
+      <a href="https://github.com/tuct/levoit/issues/76#issuecomment-7138652828">tuct/levoit#76</a>.</p>
+  </section>
+
+  <!-- 4 -->
+  <section id="matter">
+    <span class="sec-num">05 — What replaced it</span>
+    <h2>Writing fully spec-compliant Matter firmware from scratch</h2>
+    <p>Matter is the industry smart-home standard (Apple, Google, Amazon, Samsung behind it). A Matter
+      device talks <b>directly to controllers on your own network</b> — no vendor cloud in the middle.
+      Pair it once and your phone or hub commands it over the LAN, even with the internet unplugged.</p>
+    <p>I didn't bridge the purifier to Matter through some adapter. I wrote a <b>native Matter
+      application in C++ on Espressif's Matter SDK</b>, running on the same ESP32 that used to run the
+      VeSync stack. It implements the real spec: standard device types, the mandatory clusters, BLE
+      commissioning and over-the-air updates, built the way the spec intends so <em>any</em> Matter
+      controller understands the device, not just Apple Home.</p>
+
+    <h3>The data model, done to spec</h3>
+    <p>A Matter device describes itself as <b>endpoints</b> and <b>clusters</b> — a shared vocabulary
+      every controller already speaks. The purifier presents as a proper device tree:</p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Endpoint</th><th>Device type</th><th>Clusters</th></tr></thead>
+        <tbody>
+          <tr><td><code>1</code></td><td>Air Purifier</td><td>Fan Control, On/Off, HEPA Filter Monitoring</td></tr>
+          <tr><td><code>2</code></td><td>Air Quality Sensor</td><td>Air Quality, PM2.5 Concentration</td></tr>
+          <tr><td><code>3–5</code></td><td>On/Off Plug-in Unit ×3</td><td>Sleep, Display, Child Lock</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The spec-correct choice and the one that <em>looks</em> easy often differ:</p>
+    <ul>
+      <li><b>On/Off on the purifier.</b> Without it, controllers turn the fan on by writing fan-mode
+        "high", which then fights with setting Auto. Adding the standard On/Off cluster is the clean,
+        spec-intended way, and it removed a whole class of timing hacks.</li>
+      <li><b>Child lock is also <code>LocalConfigDisabled</code></b> in Basic Information — the spec's own
+        slot for "disable the device's physical controls." So a Matter-literate controller sees it in
+        the standard place, not just as a custom switch.</li>
+      <li><b>Sleep is also the fan's "sleep wind" mode</b>, which the spec defines as slowing to a final
+        minimum. That's Matter's real home for it, so other controllers can show it natively.</li>
+    </ul>
+    <p>Behind the endpoints, the firmware does the same translation the factory ESP32 did, minus the
+      cloud: a Matter write becomes one of those reverse-engineered UART commands, the MCU acts and
+      reports, and the new state is published back. Two tasks, one queue each way, the purifier always
+      the source of truth.</p>
+
+    <h3>BLE commissioning</h3>
+    <p>Pairing is the full Matter-over-Bluetooth handshake. The setup code lives on a label, never in a
+      cloud:</p>
+
+    <figure>
+      <svg viewBox="0 0 700 360" role="img" aria-label="Sequence diagram of Matter BLE commissioning between a phone and the purifier">
+        <defs>
+          <marker id="arb" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="currentColor"/></marker>
+        </defs>
+        <!-- phase bands -->
+        <rect x="18" y="74" width="664" height="150" rx="8" fill="var(--accent-soft)" opacity="0.5"/>
+        <rect x="18" y="238" width="664" height="92" rx="8" fill="var(--surface)" stroke="var(--line)" stroke-width="1"/>
+        <text x="30" y="94" font-family="var(--font-mono)" font-size="11" fill="var(--accent)">① over Bluetooth</text>
+        <text x="30" y="258" font-family="var(--font-mono)" font-size="11" fill="var(--wire-esp)">② over Wi-Fi</text>
+
+        <!-- actors -->
+        <text x="130" y="40" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="15" fill="var(--ink)">your phone</text>
+        <text x="130" y="58" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-soft)">scans the QR code</text>
+        <text x="570" y="40" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="15" fill="var(--ink)">purifier</text>
+        <text x="570" y="58" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-soft)">advertising over BLE</text>
+        <!-- lifelines -->
+        <line x1="130" y1="66" x2="130" y2="340" stroke="var(--line)" stroke-width="1.5"/>
+        <line x1="570" y1="66" x2="570" y2="340" stroke="var(--line)" stroke-width="1.5"/>
+
+        <!-- steps -->
+        <g font-family="var(--font-body)" font-size="12.5">
+          <!-- connect + SPAKE2 -->
+          <g color="var(--accent)">
+            <line x1="130" y1="116" x2="568" y2="116" stroke="currentColor" stroke-width="2" marker-end="url(#arb)"/>
+          </g>
+          <text x="350" y="109" text-anchor="middle" fill="var(--ink)">connect + prove the setup code (SPAKE2+)</text>
+
+          <!-- secure channel back -->
+          <g color="var(--good)">
+            <line x1="570" y1="152" x2="132" y2="152" stroke="currentColor" stroke-width="2" marker-end="url(#arb)"/>
+          </g>
+          <text x="350" y="145" text-anchor="middle" fill="var(--good)">🔒 encrypted channel established</text>
+
+          <!-- attestation -->
+          <g color="var(--ink-soft)">
+            <line x1="130" y1="188" x2="568" y2="188" stroke="currentColor" stroke-width="1.6" marker-end="url(#arb)"/>
+          </g>
+          <text x="350" y="181" text-anchor="middle" fill="var(--ink-soft)">check attestation — is it genuine?</text>
+
+          <!-- wifi creds -->
+          <g color="var(--ink)">
+            <line x1="130" y1="216" x2="568" y2="216" stroke="currentColor" stroke-width="2" marker-end="url(#arb)"/>
+          </g>
+          <text x="350" y="209" text-anchor="middle" fill="var(--ink)">hand over the Wi-Fi password</text>
+
+          <!-- joined / CASE -->
+          <g color="var(--wire-esp)">
+            <line x1="570" y1="288" x2="132" y2="288" stroke="currentColor" stroke-width="2" marker-end="url(#arb)"/>
+          </g>
+          <text x="350" y="281" text-anchor="middle" fill="var(--ink)">joined the network · verified (CASE)</text>
+        </g>
+
+        <!-- BLE off self-note -->
+        <rect x="455" y="304" width="230" height="22" rx="6" fill="var(--bg)" stroke="var(--line)" stroke-width="1"/>
+        <text x="570" y="319" text-anchor="middle" font-family="var(--font-mono)" font-size="10.5" fill="var(--ink-soft)">Bluetooth radio powers off</text>
+      </svg>
+      <figcaption>Once Wi-Fi is up, BLE has done its only job, so the firmware shuts the radio down to reclaim the memory — every kilobyte counts on this chip.</figcaption>
+    </figure>
+
+    <h3>Over-the-air updates, both ends</h3>
+    <p>I implemented Matter's OTA spec on both ends. The device is an <b>OTA Requestor</b>:
+      the build wraps the app image in a Matter OTA header (vendor ID, product ID, version, SHA-256).
+      Because Apple won't deliver updates for an uncertified device, I also wrote the other half — the
+      <b>OTA Provider</b>, a small command-line tool. The two do the standard dance:</p>
+
+    <figure>
+      <svg viewBox="0 0 700 210" role="img" aria-label="Diagram: OTA provider tool and the purifier exchanging Matter OTA messages">
+        <defs>
+          <marker id="aro" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="currentColor"/></marker>
+        </defs>
+        <rect x="20" y="70" width="190" height="70" rx="10" fill="var(--surface)" stroke="var(--wire-esp)" stroke-width="1.5"/>
+        <text x="115" y="100" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="14" fill="var(--ink)">your computer</text>
+        <text x="115" y="120" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-soft)">OTA Provider (my CLI)</text>
+        <rect x="490" y="70" width="190" height="70" rx="10" fill="var(--surface)" stroke="var(--wire-mcu)" stroke-width="1.5"/>
+        <text x="585" y="100" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="14" fill="var(--ink)">purifier</text>
+        <text x="585" y="120" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-soft)">OTA Requestor</text>
+        <g color="var(--ink-soft)" font-family="var(--font-mono)" font-size="10">
+          <line x1="212" y1="82" x2="488" y2="82" stroke="currentColor" stroke-width="1.5" marker-end="url(#aro)"/>
+          <text x="350" y="76" text-anchor="middle" fill="var(--ink-soft)">1 · AnnounceOTAProvider</text>
+          <line x1="488" y1="104" x2="212" y2="104" stroke="currentColor" stroke-width="1.5" marker-end="url(#aro)"/>
+          <text x="350" y="99" text-anchor="middle" fill="var(--ink-soft)">2 · QueryImage (vid/pid/version)</text>
+        </g>
+        <g color="var(--accent)" font-family="var(--font-mono)" font-size="10">
+          <line x1="212" y1="128" x2="488" y2="128" stroke="currentColor" stroke-width="2" marker-end="url(#aro)"/>
+          <text x="350" y="123" text-anchor="middle" fill="var(--accent)">3 · image over BDX, on the encrypted CASE session</text>
+        </g>
+        <text x="350" y="170" text-anchor="middle" font-family="var(--font-body)" font-size="12" fill="var(--ink-soft)">4 · device verifies the SHA-256, swaps boot slot, reboots</text>
+        <text x="350" y="190" text-anchor="middle" font-family="var(--font-body)" font-size="12" fill="var(--good)">5 · health check passes, or the bootloader rolls back to the old image</text>
+      </svg>
+      <figcaption>Encrypted and certificate-authenticated, the same trust model Apple Home uses. No password crosses the network, and a bad image can't brick the device.</figcaption>
+    </figure>
+
+    <p>The safety net: a freshly flashed image only becomes permanent if, within
+      two minutes of boot, the network is up and the MCU is answering. Otherwise the ESP32's bootloader
+      quietly reverts to the previous image. You can push an update from the couch and the worst case is
+      it rolls back.</p>
+
+    <div class="callout">
+      <h4>Honest limitation</h4>
+      <p>The one thing I <em>can't</em> do is certify it. A production Matter attestation certificate
+        needs a paid vendor ID from the alliance, so the firmware uses the SDK's test certificate, and
+        Apple Home says "uncertified accessory" once during pairing. The protocol is fully compliant;
+        it's the paperwork that isn't.</p>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section id="ha">
+    <span class="sec-num">06 — Going further</span>
+    <h2>And for the Home Assistant crowd</h2>
+    <p>Where this really pays off is <b>Home Assistant</b>, the open-source home hub. It runs its own
+      Matter controller <em>and</em> speaks ESPHome natively, so the purifier slots straight in with
+      dashboards, automations and history kept on your own box. And because the device is standard
+      Matter, it isn't limited to HA — Google Home, Alexa or SmartThings can drive it the same local
+      way, no vendor cloud in the loop.</p>
+
+    <div class="grid2">
+      <div class="card">
+        <h4>As a Matter device</h4>
+        <p>Home Assistant runs its own Matter controller. Point it at the purifier and it joins as a
+          third controller alongside Apple Home — same local protocol, no cloud, full fan and
+          air-quality control.</p>
+      </div>
+      <div class="card">
+        <h4>As an ESPHome device</h4>
+        <p>The sister firmware runs <a href="https://esphome.io">ESPHome</a>, which Home Assistant
+          speaks natively. Every sensor and control becomes a first-class HA entity, with dashboards,
+          automations and history — all computed and stored on your own box.</p>
+      </div>
+    </div>
+
+    <figure>
+      <svg viewBox="0 0 700 330" role="img" aria-label="Diagram: the purifier inside a local home network, reachable by many smart-home controllers, with the vendor cloud left outside">
+        <!-- home box -->
+        <rect x="18" y="40" width="500" height="278" rx="18" fill="var(--surface)" stroke="var(--wire-esp)" stroke-width="2"/>
+        <text x="40" y="70" font-family="var(--font-head)" font-weight="600" font-size="15" fill="var(--ink)">🏠 your home</text>
+        <text x="40" y="90" font-family="var(--font-mono)" font-size="11" fill="var(--wire-esp)">local Wi-Fi or Thread · no hub required</text>
+
+        <!-- purifier center -->
+        <circle cx="268" cy="228" r="46" fill="var(--bg)" stroke="var(--accent)" stroke-width="2"/>
+        <text x="268" y="224" text-anchor="middle" font-family="var(--font-head)" font-weight="600" font-size="13" fill="var(--ink)">purifier</text>
+        <text x="268" y="242" text-anchor="middle" font-family="var(--font-mono)" font-size="9.5" fill="var(--ink-soft)">Matter</text>
+
+        <!-- controllers -->
+        <g font-family="var(--font-head)" font-weight="600" font-size="12.5">
+          <!-- links -->
+          <g stroke="var(--ink-soft)" stroke-width="1.6">
+            <line x1="150" y1="138" x2="238" y2="198"/>
+            <line x1="268" y1="128" x2="268" y2="182"/>
+            <line x1="386" y1="138" x2="298" y2="198"/>
+          </g>
+          <rect x="70" y="108" width="150" height="46" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="145" y="130" text-anchor="middle" fill="var(--ink)">Apple Home</text>
+          <text x="145" y="146" text-anchor="middle" font-family="var(--font-body)" font-weight="400" font-size="10" fill="var(--ink-soft)">HomeKit</text>
+
+          <rect x="208" y="92" width="120" height="30" rx="10" fill="#15a2d4"/>
+          <text x="268" y="112" text-anchor="middle" fill="#fff" font-size="12">Home Assistant</text>
+
+          <rect x="316" y="108" width="170" height="46" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="401" y="130" text-anchor="middle" fill="var(--ink)">any other Matter</text>
+          <text x="401" y="146" text-anchor="middle" font-family="var(--font-body)" font-weight="400" font-size="10" fill="var(--ink-soft)">Google · Alexa · SmartThings</text>
+        </g>
+
+        <!-- cloud outside, crossed out -->
+        <g>
+          <ellipse cx="615" cy="150" rx="66" ry="40" fill="none" stroke="var(--ink-soft)" stroke-width="1.5" stroke-dasharray="5 4"/>
+          <text x="615" y="146" text-anchor="middle" font-family="var(--font-body)" font-size="12" fill="var(--ink-soft)">vendor</text>
+          <text x="615" y="162" text-anchor="middle" font-family="var(--font-body)" font-size="12" fill="var(--ink-soft)">cloud</text>
+          <line x1="565" y1="185" x2="665" y2="115" stroke="var(--bad)" stroke-width="2.5"/>
+          <text x="615" y="214" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--bad)">left outside</text>
+        </g>
+      </svg>
+      <figcaption>Every controller reaches the purifier directly, over your LAN or Thread. The vendor's servers aren't part of the picture any more.</figcaption>
+    </figure>
+
+    <p>The stock firmware has <b>no local control at all</b> — even Levoit's own app only ever talks to
+      the cloud, so the day your internet drops, the app can't turn the fan on and only the physical
+      buttons work. Home Assistant's stock VeSync add-on takes the same detour. My firmware removes
+      it:</p>
+
+    <figure>
+      <svg viewBox="0 0 700 240" role="img" aria-label="Before and after: the VeSync app and Home Assistant both went through the vendor cloud, now control is direct and local">
+        <defs>
+          <marker id="arb2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="currentColor"/></marker>
+        </defs>
+        <!-- BEFORE -->
+        <text x="20" y="34" font-family="var(--font-mono)" font-size="12" fill="var(--bad)">before — needs the cloud</text>
+        <g font-family="var(--font-head)" font-weight="600" font-size="12">
+          <rect x="20" y="46" width="130" height="34" rx="8" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="85" y="67" text-anchor="middle" fill="var(--ink)">VeSync app</text>
+          <rect x="20" y="88" width="130" height="34" rx="8" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="85" y="109" text-anchor="middle" fill="var(--ink)">Home Assistant</text>
+          <rect x="298" y="62" width="120" height="44" rx="9" fill="var(--surface)" stroke="var(--bad)" stroke-width="1.8"/>
+          <text x="358" y="89" text-anchor="middle" fill="var(--ink)">VeSync cloud</text>
+          <rect x="560" y="62" width="120" height="44" rx="9" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="620" y="89" text-anchor="middle" fill="var(--ink)">purifier</text>
+        </g>
+        <!-- converging to cloud + cloud->device, all fragile/dashed -->
+        <g color="var(--ink-soft)" stroke-width="1.7">
+          <line x1="152" y1="63" x2="294" y2="80" stroke="currentColor" stroke-dasharray="5 4" marker-end="url(#arb2)"/>
+          <line x1="152" y1="105" x2="294" y2="88" stroke="currentColor" stroke-dasharray="5 4" marker-end="url(#arb2)"/>
+          <line x1="420" y1="84" x2="556" y2="84" stroke="currentColor" stroke-dasharray="5 4" marker-end="url(#arb2)"/>
+        </g>
+        <!-- severed link on the cloud->device leg -->
+        <g>
+          <line x1="474" y1="70" x2="502" y2="98" stroke="var(--bg)" stroke-width="9"/>
+          <line x1="478" y1="71" x2="491" y2="97" stroke="var(--bad)" stroke-width="2.6"/>
+          <line x1="487" y1="71" x2="500" y2="97" stroke="var(--bad)" stroke-width="2.6"/>
+        </g>
+        <text x="358" y="130" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--bad)">✕ internet drops → neither can reach it, buttons only</text>
+
+        <!-- AFTER -->
+        <text x="20" y="166" font-family="var(--font-mono)" font-size="12" fill="var(--good)">now — my firmware (local)</text>
+        <g font-family="var(--font-head)" font-weight="600" font-size="12">
+          <rect x="20" y="178" width="150" height="44" rx="9" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="95" y="205" text-anchor="middle" fill="var(--ink)">any controller</text>
+          <rect x="560" y="178" width="120" height="44" rx="9" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="620" y="205" text-anchor="middle" fill="var(--ink)">purifier</text>
+        </g>
+        <g color="var(--good)">
+          <line x1="172" y1="200" x2="556" y2="200" stroke="currentColor" stroke-width="2.4" marker-end="url(#arb2)"/>
+        </g>
+        <text x="372" y="194" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--good)">direct · local Wi-Fi or Thread</text>
+      </svg>
+      <figcaption>Before, the app and any integration both routed through VeSync's servers, so an internet outage left only the physical buttons. Now control is direct and local — it works with the router's WAN unplugged.</figcaption>
+    </figure>
+  </section>
+
+  <!-- 7 -->
+  <section id="open-source">
+    <span class="sec-num">07 — Open source</span>
+    <h2>None of this was done alone, and none of it stays private</h2>
+    <p>Everything here stands on community reverse engineering — people who tore these purifiers apart
+      and wrote down what they found. I worked the same way: my oddball UAE unit (MCU 1.0.0) was
+      documented nowhere, so every new thing I decoded went straight back upstream. The next person who
+      opens one of these starts where I finished, not from a blank page.</p>
+
+    <figure>
+      <svg viewBox="0 0 700 150" role="img" aria-label="Flow: findings from one unit documented and merged upstream, helping every owner">
+        <defs>
+          <marker id="aros" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="currentColor"/></marker>
+        </defs>
+        <g font-family="var(--font-head)" font-weight="600" font-size="13">
+          <rect x="20" y="48" width="180" height="56" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="110" y="72" text-anchor="middle" fill="var(--ink)">one odd unit</text>
+          <text x="110" y="90" text-anchor="middle" font-family="var(--font-body)" font-weight="400" font-size="11" fill="var(--ink-soft)">decoded on my desk</text>
+
+          <rect x="260" y="48" width="180" height="56" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+          <text x="350" y="72" text-anchor="middle" fill="var(--ink)">merged upstream</text>
+          <text x="350" y="90" text-anchor="middle" font-family="var(--font-mono)" font-weight="400" font-size="10" fill="var(--accent)">tuct/levoit</text>
+
+          <rect x="500" y="48" width="180" height="56" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="590" y="72" text-anchor="middle" fill="var(--ink)">every owner</text>
+          <text x="590" y="90" text-anchor="middle" font-family="var(--font-body)" font-weight="400" font-size="11" fill="var(--ink-soft)">+ other models</text>
+        </g>
+        <g color="var(--ink-soft)" stroke-width="1.8">
+          <line x1="202" y1="76" x2="256" y2="76" stroke="currentColor" marker-end="url(#aros)"/>
+          <line x1="442" y1="76" x2="496" y2="76" stroke="currentColor" marker-end="url(#aros)"/>
+        </g>
+      </svg>
+      <figcaption>Each finding was written up and sent back as a pull request, so it helps everyone with a Levoit, not just me.</figcaption>
+    </figure>
+
+    <p>Every finding went back as a pull request — the protocol work merged into the purifier's
+      open-source driver (<a href="https://github.com/tuct/levoit">tuct/levoit</a>), the Matter work in
+      review upstream (<a href="https://github.com/DavidvtWout/esphome-matter">esphome-matter</a>).</p>
+    <p class="prs-legend"><b style="color:var(--ink)">14 pull requests</b> &nbsp;·&nbsp; <span class="dm">●</span> 7 merged &nbsp;·&nbsp; <span class="do">●</span> 7 open / in review</p>
+    <div class="prs">
+      <a href="https://github.com/tuct/levoit/pull/140">19-byte status decode <b>#140</b></a>
+      <a href="https://github.com/tuct/levoit/pull/141">status request <b>#141</b></a>
+      <a href="https://github.com/tuct/levoit/pull/142">panel filter reset <b>#142</b></a>
+      <a href="https://github.com/tuct/levoit/pull/143">On/Off hold <b>#143</b></a>
+      <a href="https://github.com/tuct/levoit/pull/144">plasma command <b>#144</b></a>
+      <a href="https://github.com/tuct/levoit/pull/146">Matter firmware links <b>#146</b></a>
+      <a href="https://github.com/tuct/levoit/pull/148">display fix <b>#148</b></a>
+      <a href="https://github.com/tuct/levoit/pull/149" class="open">air quality while off <b>#149</b></a>
+      <a href="https://github.com/tuct/levoit/pull/151" class="open">speed in sleep <b>#151</b></a>
+      <a href="https://github.com/DavidvtWout/esphome-matter/pull/115" class="open">Thread gating <b>#115</b></a>
+      <a href="https://github.com/DavidvtWout/esphome-matter/pull/116" class="open">fan auto-mode fix <b>#116</b></a>
+      <a href="https://github.com/DavidvtWout/esphome-matter/pull/117" class="open">air quality + filter <b>#117</b></a>
+      <a href="https://github.com/DavidvtWout/esphome-matter/pull/118" class="open">factory setup-code partition <b>#118</b></a>
+      <a href="https://github.com/DavidvtWout/esphome-matter/pull/119" class="open">fan control mapping <b>#119</b></a>
+    </div>
+
+    <p>And the firmware itself is two open repositories, MIT-licensed, one build per model, no secrets
+      baked in — fork it, flash it, or just read how it works.</p>
+    <div class="grid2">
+      <div class="card">
+        <h4><a href="https://github.com/tadhglewis/levoit-matter">levoit-matter</a></h4>
+        <p>The native Matter firmware, with the OTA tooling and the full protocol write-up.</p>
+      </div>
+      <div class="card">
+        <h4><a href="https://github.com/tadhglewis/esphome-levoit-matter">esphome-levoit-matter</a></h4>
+        <p>The same purifier as an ESPHome config, for the Home Assistant route.</p>
+      </div>
+    </div>
+
+    <h3>This is one device. The plan is the whole house.</h3>
+    <p>The purifier was the first one. Same playbook now points at the air conditioner, the fridge, the
+      washing machine — each one freed from its vendor cloud and brought onto the same local network, so
+      the house runs its own automations with nothing phoning home.</p>
+
+    <div class="callout">
+      <h4>Come home to the perfect house</h4>
+      <p>Only possible once it's all local and on one hub. If I've been away more than two days and I'm
+        heading home (six hours out, or landed at the airport):</p>
+      <ul style="margin:0.7rem 0 0;padding-left:1.1rem;line-height:1.7">
+        <li>start the aircon and the air purifier</li>
+        <li>run the vacuum and open the blinds</li>
+        <li>take the fridge out of away mode</li>
+        <li>put the TV on with a picture up, and play some music</li>
+      </ul>
+      <p style="margin-top:0.7rem">Or, reading my own calendar: <em>deep-clean the place before my
+        flight home.</em> No cloud account could orchestrate across brands like that — but devices that
+        answer only to your own network can.</p>
+    </div>
+
+    <h3>What I'd stress</h3>
+    <div class="grid2">
+      <div class="card">
+        <h4>Open source is the whole reason this works</h4>
+        <p>Shared captures and shared protocols are what let anyone pick this up. Take from the commons,
+          give back to it.</p>
+      </div>
+      <div class="card">
+        <h4>Why a whole relay backend?</h4>
+        <p>The device is right there on your Wi-Fi, but there's no local control — every command detours
+          through the vendor's servers and locks you into their app. No technical reason for it. Just
+          talk to the device directly.</p>
+      </div>
+    </div>
+
+    <p class="pull">None of it was private, and none of it stays locked to a vendor. The reverse
+      engineering goes back upstream, the firmware is open, and the house gets a little more mine with
+      every device I bring onto the LAN.</p>
+  </section>
+
+  <footer>
+    <p>Built on open-source reverse engineering. Protocol work contributed back to
+      <a href="https://github.com/tuct/levoit">tuct/levoit</a>.</p>
+    <div class="foot-links">
+      <a href="https://github.com/tadhglewis/levoit-matter">levoit-matter</a>
+      <a href="https://github.com/tadhglewis/esphome-levoit-matter">esphome-levoit-matter</a>
+      <a href="https://github.com/tuct/levoit/issues/76#issuecomment-7138652828">OTA write-up</a>
+    </div>
+  </footer>
+
+</main>
