@@ -157,7 +157,7 @@ Plan plan_fan_level(const ModelSpec &model, const PurifierState &state,
   return plan;
 }
 
-Plan plan_sleep(const PurifierState &state, bool on) {
+Plan plan_sleep(const PurifierState &state, bool on, Mode resume) {
   Plan plan;
   plan.expected = state;
   if (on) {
@@ -174,8 +174,8 @@ Plan plan_sleep(const PurifierState &state, bool on) {
     return plan;
   }
   if (state.power && state.mode == Mode::SLEEP) {
-    plan.add(command_mode(Mode::MANUAL));
-    plan.expected.mode = Mode::MANUAL;
+    plan.add(command_mode(resume));
+    plan.expected.mode = resume;
     plan.expected_fields = FIELD_MODE;
   }
   return plan;
