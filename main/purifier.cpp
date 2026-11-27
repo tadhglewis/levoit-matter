@@ -1,6 +1,6 @@
 #include "purifier.h"
 
-#include "filter_life.h"
+#include "core_bridge.h"
 #include "levoit_link.h"
 
 #include <esp_log.h>
@@ -10,6 +10,8 @@
 #include <nvs.h>
 
 #include <atomic>
+#include <cstring>
+#include <functional>
 
 static const char *const TAG = "purifier";
 
@@ -17,13 +19,16 @@ namespace levoit_matter {
 
 namespace {
 
+namespace core = levoit_core;
+
 constexpr int TX_PIN = CONFIG_LEVOIT_UART_TX_GPIO;
 constexpr int RX_PIN = CONFIG_LEVOIT_UART_RX_GPIO;
-constexpr const char *NVS_NAMESPACE = "levoit";
-constexpr const char *NVS_USED_CADR = "used_cadr";
-constexpr const char *NVS_RUNTIME = "runtime_min";
-constexpr uint32_t SAVE_EVERY_MINUTES = 30;
+constexpr const char *NVS_NAMESPACE = "core";
+constexpr const char *CORE_KEY_PREFIX = "levoit_";
 constexpr uint32_t REPUBLISH_WINDOW_MS = 3000;
+constexpr uint32_t STATUS_QUERY_MS = 5000;
+constexpr uint32_t FILTER_LED_RESEND_MS = 1500;
+constexpr size_t MAX_TIMEOUTS = 8;
 
 #if CONFIG_LEVOIT_MODEL_CORE200S
 const ModelSpec &model = CORE_200S;
@@ -37,46 +42,182 @@ const ModelSpec &model = CORE_300S;
 PurifierCallbacks callbacks{};
 QueueHandle_t requests = nullptr;
 
-FilterLife filter(model);
 Holdoff holdoff;
 HoldReset hold_reset;
 
 PurifierState raw_state;
 bool have_state = false;
+bool status_pending = false;
 uint8_t last_level = 0;
 MatterView last_view;
 bool have_view = false;
 
 uint32_t republish_started_ms = 0;
 bool republish_active = false;
-uint32_t last_minute_ms = 0;
-uint32_t saved_runtime = 0;
+uint32_t last_status_ms = 0;
+uint32_t last_query_ms = 0;
 bool filter_led_on = false;
 bool filter_led_sent = false;
+uint32_t filter_led_resend_ms = 0;
 
 WifiLed wifi_led = WifiLed::OFF;
 WifiLed wifi_led_shown = WifiLed::OFF;
-bool wifi_led_sent = false;
 bool identifying = false;
+bool started = false;
 
 std::atomic<bool> ready{false};
 std::atomic<uint8_t> filter_percent{100};
 
-void save_filter() {
-  nvs_handle_t handle;
-  if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK)
-    return;
-  esp_err_t err = nvs_set_u32(handle, NVS_USED_CADR, filter.used_cadr());
-  if (err == ESP_OK)
-    err = nvs_set_u32(handle, NVS_RUNTIME, filter.runtime_minutes());
-  if (err == ESP_OK)
-    err = nvs_commit(handle);
-  nvs_close(handle);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "filter save failed: %s", esp_err_to_name(err));
-    return;
+const char *nvs_key(const char *core_key) {
+  size_t prefix = strlen(CORE_KEY_PREFIX);
+  return strncmp(core_key, CORE_KEY_PREFIX, prefix) == 0 ? core_key + prefix : core_key;
+}
+
+struct Timeout {
+  const char *name{nullptr};
+  uint32_t due_ms{0};
+  std::function<void()> fn;
+};
+
+class Platform : public core::LevoitPlatform {
+public:
+  void write(const uint8_t *data, size_t len) override { link_write(data, len); }
+  uint32_t millis() override { return link_now_ms(); }
+
+  void set_timeout(const char *name, uint32_t ms, std::function<void()> fn) override {
+    Timeout *slot = find_(name);
+    if (slot == nullptr)
+      slot = find_(nullptr);
+    if (slot == nullptr) {
+      ESP_LOGW(TAG, "no room for timeout %s", name);
+      return;
+    }
+    slot->name = name;
+    slot->due_ms = link_now_ms() + ms;
+    slot->fn = std::move(fn);
   }
-  saved_runtime = filter.runtime_minutes();
+
+  void cancel_timeout(const char *name) override {
+    Timeout *slot = find_(name);
+    if (slot != nullptr) {
+      slot->name = nullptr;
+      slot->fn = nullptr;
+    }
+  }
+
+  void run_due(uint32_t now_ms) {
+    for (Timeout &slot : timeouts_) {
+      if (slot.name == nullptr || static_cast<int32_t>(now_ms - slot.due_ms) < 0)
+        continue;
+      std::function<void()> fn = std::move(slot.fn);
+      slot.name = nullptr;
+      slot.fn = nullptr;
+      if (fn)
+        fn();
+    }
+  }
+
+  bool load_u32(const char *key, uint32_t &out) override {
+    const char *mapped = nvs_key(key);
+    nvs_handle_t handle;
+    if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &handle) != ESP_OK)
+      return false;
+    esp_err_t err = nvs_get_u32(handle, mapped, &out);
+    nvs_close(handle);
+    return err == ESP_OK;
+  }
+
+  void save_u32(const char *key, uint32_t value) override {
+    const char *mapped = nvs_key(key);
+    nvs_handle_t handle;
+    if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK)
+      return;
+    uint32_t stored = 0;
+    esp_err_t err = ESP_OK;
+    if (nvs_get_u32(handle, mapped, &stored) != ESP_OK || stored != value) {
+      err = nvs_set_u32(handle, mapped, value);
+      if (err == ESP_OK)
+        err = nvs_commit(handle);
+    }
+    nvs_close(handle);
+    if (err != ESP_OK)
+      ESP_LOGW(TAG, "save %s failed: %s", mapped, esp_err_to_name(err));
+  }
+
+  bool has_clock() override { return false; }
+  bool local_time(uint32_t &) override { return false; }
+
+  core::NetworkState network_state() override {
+    switch (wifi_led_shown) {
+    case WifiLed::SOLID:
+      return core::NetworkState::CONNECTED;
+    case WifiLed::BLINK:
+      return core::NetworkState::CONNECTING;
+    default:
+      return core::NetworkState::DISABLED;
+    }
+  }
+
+private:
+  Timeout *find_(const char *name) {
+    for (Timeout &slot : timeouts_) {
+      if (name == nullptr ? slot.name == nullptr
+                          : slot.name != nullptr && strcmp(slot.name, name) == 0)
+        return &slot;
+    }
+    return nullptr;
+  }
+
+  Timeout timeouts_[MAX_TIMEOUTS];
+};
+
+class Host : public core::LevoitHost {
+public:
+  void switch_changed(core::SwitchType, bool) override {}
+  void number_changed(core::NumberType, float) override {}
+  void select_changed(core::SelectType, uint32_t) override {}
+  void text_changed(core::TextSensorType, const std::string &) override {}
+
+  void sensor_changed(core::SensorType type, float value) override {
+    if (type == core::SensorType::FILTER_LIFE_LEFT) {
+      filter_percent.store(filter_percent_from_core(value));
+      filter_changed_ = true;
+    }
+  }
+
+  void binary_changed(core::BinarySensorType type, bool state) override {
+    if (type != core::BinarySensorType::POWER_BUTTON_HELD)
+      return;
+    ESP_LOGI(TAG, "button hold %s", state ? "started" : "released");
+    hold_reset.feed(state ? HoldReset::STARTED : HoldReset::RELEASED, link_now_ms());
+    hold_changed_ = true;
+  }
+
+  void fan_changed(int, int, int) override { status_pending = true; }
+
+  bool take_filter_changed() {
+    bool changed = filter_changed_;
+    filter_changed_ = false;
+    return changed;
+  }
+
+  bool take_hold_changed() {
+    bool changed = hold_changed_;
+    hold_changed_ = false;
+    return changed;
+  }
+
+private:
+  bool filter_changed_{false};
+  bool hold_changed_{false};
+};
+
+Platform platform;
+Host host;
+core::LevoitDevice device(&host, &platform);
+
+uint32_t filter_capacity() {
+  return static_cast<uint32_t>(model.cadr_m3h) * 24 * 30 * model.filter_months;
 }
 
 void publish(uint32_t now_ms, bool force) {
@@ -84,17 +225,20 @@ void publish(uint32_t now_ms, bool force) {
     return;
   PurifierState effective = raw_state;
   holdoff.apply(effective, now_ms);
-  MatterView view = make_view(model, effective, last_level, filter.percent());
+  MatterView view = make_view(model, effective, last_level, filter_percent.load());
   if (!force && have_view && view == last_view && !republish_active)
     return;
   last_view = view;
   have_view = callbacks.publish(view);
 
   bool led_wanted = view.change_indication == 2;
-  if (led_wanted != filter_led_on || !filter_led_sent) {
+  bool resend = filter_led_resend_ms != 0 &&
+                static_cast<int32_t>(now_ms - filter_led_resend_ms) >= 0;
+  if (led_wanted != filter_led_on || !filter_led_sent || resend) {
     filter_led_on = led_wanted;
     filter_led_sent = true;
-    link_send(command_filter_led(led_wanted));
+    filter_led_resend_ms = 0;
+    send_to_core(device, command_filter_led(led_wanted));
   }
 }
 
@@ -104,47 +248,53 @@ void apply_plan(const Plan &plan, uint32_t now_ms) {
     return;
   }
   for (uint8_t i = 0; i < plan.count; i++)
-    link_send(plan.commands[i]);
+    send_to_core(device, plan.commands[i]);
   holdoff.expect(plan, now_ms);
   republish_started_ms = now_ms;
   republish_active = true;
 }
 
-void show_wifi_led() {
+void show_wifi_led(uint32_t now_ms) {
   bool attention = identifying || hold_reset.holding();
   WifiLed shown = !attention                    ? wifi_led
                   : wifi_led == WifiLed::BLINK ? WifiLed::SOLID
                                                : WifiLed::BLINK;
-  if (shown == wifi_led_shown && wifi_led_sent)
+  if (shown == wifi_led_shown)
     return;
   wifi_led_shown = shown;
-  wifi_led_sent = true;
-  link_send(command_wifi_led(shown));
+  if (shown == WifiLed::SOLID)
+    filter_led_resend_ms = now_ms + FILTER_LED_RESEND_MS;
+}
+
+void set_filter_percent(uint8_t percent, uint32_t now_ms) {
+  if (percent > 100)
+    percent = 100;
+  uint64_t used = (static_cast<uint64_t>(filter_capacity()) * (100 - percent) + 99) / 100;
+  device.set_used_cadr(static_cast<uint32_t>(used));
+  device.publish_filter_stats_now();
+  publish(now_ms, true);
 }
 
 void handle_request(const Request &request, uint32_t now_ms) {
   if (request.kind == RequestKind::WIFI_LED) {
     wifi_led = static_cast<WifiLed>(request.value);
-    show_wifi_led();
+    show_wifi_led(now_ms);
     return;
   }
   if (request.kind == RequestKind::IDENTIFY) {
     identifying = request.value != 0;
-    show_wifi_led();
+    show_wifi_led(now_ms);
     return;
   }
   if (request.kind == RequestKind::FILTER_SET) {
-    filter.set_percent(request.value);
-    filter_percent.store(filter.percent());
-    save_filter();
-    ESP_LOGI(TAG, "filter life set to %u%%", filter.percent());
-    publish(now_ms, true);
+    set_filter_percent(request.value, now_ms);
+    ESP_LOGI(TAG, "filter life set to %u%%", filter_percent.load());
     return;
   }
   if (request.kind == RequestKind::FILTER_RESET) {
-    filter.reset();
-    filter_percent.store(filter.percent());
-    save_filter();
+    device.set_used_cadr(0);
+    device.set_total_runtime(0);
+    device.publish_filter_stats_now();
     publish(now_ms, true);
     return;
   }
@@ -187,53 +337,57 @@ void handle_request(const Request &request, uint32_t now_ms) {
   }
 }
 
-void on_status(const PurifierState &state, uint32_t now_ms) {
-  bool was_on = have_state && raw_state.power;
-  raw_state = state;
+void take_status(uint32_t now_ms) {
+  PurifierState next;
+  if (!state_from_core(model, device.state(), raw_state, next))
+    return;
+  raw_state = next;
   have_state = true;
-  if (state.level != 0 && (state.mode == Mode::MANUAL || state.running_level_valid))
-    last_level = state.level;
-  if (was_on && !state.power)
-    save_filter();
-
-  if (!ready.exchange(true)) {
-    ESP_LOGI(TAG, "MCU %u.%u.%u", state.mcu_major, state.mcu_minor,
-             state.mcu_patch);
-    if (wifi_led_sent)
-      link_send(command_wifi_led(wifi_led_shown));
-  }
+  last_status_ms = now_ms == 0 ? 1 : now_ms;
+  if (raw_state.level != 0 &&
+      (raw_state.mode == Mode::MANUAL || raw_state.running_level_valid))
+    last_level = raw_state.level;
+  if (!ready.exchange(true))
+    ESP_LOGI(TAG, "MCU %u.%u.%u", raw_state.mcu_major, raw_state.mcu_minor,
+             raw_state.mcu_patch);
   publish(now_ms, false);
 }
 
-void on_button_hold(uint8_t event, uint32_t now_ms) {
-  ESP_LOGI(TAG, "button hold event %u", event);
-  hold_reset.feed(event, now_ms);
-  show_wifi_led();
-}
-
-void on_filter_reset(uint32_t now_ms) {
-  ESP_LOGI(TAG, "filter reset from the panel");
-  filter.reset();
-  filter_percent.store(filter.percent());
-  save_filter();
-  publish(now_ms, true);
+void on_bytes(const uint8_t *data, size_t len, uint32_t now_ms) {
+  device.receive(data, len, now_ms);
+  if (status_pending) {
+    status_pending = false;
+    take_status(now_ms);
+  }
+  if (host.take_hold_changed())
+    show_wifi_led(now_ms);
+  if (host.take_filter_changed())
+    publish(now_ms, false);
 }
 
 void on_poll(uint32_t now_ms) {
+  if (!started) {
+    started = true;
+    device.begin();
+  }
+  platform.run_due(now_ms);
+
   Request request;
   while (xQueueReceive(requests, &request, 0) == pdTRUE)
     handle_request(request, now_ms);
 
-  if (now_ms - last_minute_ms >= 60000) {
-    last_minute_ms = now_ms;
-    if (have_state) {
-      filter.tick_minute(raw_state, last_level);
-      filter_percent.store(filter.percent());
-      if (filter.runtime_minutes() - saved_runtime >= SAVE_EVERY_MINUTES)
-        save_filter();
-      publish(now_ms, false);
-    }
+  device.tick(now_ms);
+  if (host.take_filter_changed())
+    publish(now_ms, false);
+
+  if (&model == &CORE_300S && now_ms - last_status_ms > STATUS_QUERY_MS &&
+      now_ms - last_query_ms > STATUS_QUERY_MS) {
+    last_query_ms = now_ms;
+    device.sendCommand(core::CommandType::requestCore300sStatus);
   }
+
+  if (filter_led_resend_ms != 0 && static_cast<int32_t>(now_ms - filter_led_resend_ms) >= 0)
+    publish(now_ms, true);
 
   if (hold_reset.due(now_ms)) {
     ESP_LOGW(TAG, "button held, resetting to pairing mode");
@@ -253,17 +407,6 @@ const ModelSpec &purifier_model() { return model; }
 void purifier_load() {
   if (requests == nullptr)
     requests = xQueueCreate(16, sizeof(Request));
-  nvs_handle_t handle;
-  if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &handle) != ESP_OK)
-    return;
-  uint32_t used_cadr = 0;
-  uint32_t runtime = 0;
-  nvs_get_u32(handle, NVS_USED_CADR, &used_cadr);
-  nvs_get_u32(handle, NVS_RUNTIME, &runtime);
-  nvs_close(handle);
-  filter.load(used_cadr, runtime);
-  saved_runtime = runtime;
-  filter_percent.store(filter.percent());
 }
 
 uint8_t purifier_filter_percent() { return filter_percent.load(); }
@@ -274,8 +417,14 @@ esp_err_t purifier_start(const PurifierCallbacks &purifier_callbacks) {
     requests = xQueueCreate(16, sizeof(Request));
   if (requests == nullptr)
     return ESP_ERR_NO_MEM;
-  LinkHandlers handlers = {on_status, on_filter_reset, on_button_hold, on_poll};
-  return link_start(model, TX_PIN, RX_PIN, handlers);
+  esp_log_level_set("levoit", ESP_LOG_WARN);
+  esp_log_level_set("levoit.decoder", ESP_LOG_WARN);
+  esp_log_level_set("levoit.core", ESP_LOG_WARN);
+  esp_log_level_set("levoit.core_cmd", ESP_LOG_WARN);
+  device.set_device_model(model.core_name);
+  device.note_number_state(core::NumberType::FILTER_LIFETIME_MONTHS, model.filter_months);
+  LinkHandlers handlers = {on_bytes, on_poll};
+  return link_start(TX_PIN, RX_PIN, handlers);
 }
 
 bool purifier_post(const Request &request) {

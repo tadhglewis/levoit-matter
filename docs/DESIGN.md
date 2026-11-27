@@ -100,9 +100,9 @@ sequenceDiagram
 
 ## Models
 
-Everything model-specific is one row in `components/levoit/src/levoit_core.cpp`: speed count, airflow, status frame type and byte positions, status request, acknowledgement type. A row can carry a second status layout and request for a different controller revision. The firmware works out which one it has.
+The UART protocol comes from [tuct/levoit](https://github.com/tuct/levoit)'s shared core in `third_party/levoit`: framing, acknowledgements, every model's status decoder and command builder, and filter tracking. This firmware maps the core's state to Matter.
 
-A new Core model is a row, a Kconfig entry and a captured status frame in the tests. Vital, Sprout and EverestAir use a different frame format and need their own decoder.
+What is model-specific here is one row in `components/levoit/src/purifier_model.cpp`: name, speed count, airflow, Auto and PM2.5. A new Core model is a row and a Kconfig entry. Vital, Sprout, EverestAir and Eleva need their own mode mapping, and the ESP32-C3 boards another build: https://github.com/tadhglewis/levoit-matter/issues/7.
 
 ## Filter life
 
@@ -263,7 +263,7 @@ We have not watched offset 9 rise in auto. The reading matches mulcmu's notes on
 
 **Two display bytes.** With the display set to off, any button lights the backlight for three seconds. Offset 7 goes to `64` and back. Offset 8 stays `00`. Read offset 8. We read offset 7 first. Back when the reset counted display changes, three button presses with the display off would have factory-reset the purifier.
 
-**Status request is `01 33 40`.** This controller acknowledges the documented `01 31 40` with an empty payload. The stock firmware names `01 33 40` as `purifier_uart_query_device_status`, and the reply is an acknowledgement carrying the 19-byte status. The firmware tries both until one returns a status.
+**Status request is `01 33 40`.** This controller acknowledges the documented `01 31 40` with an empty payload. The stock firmware names `01 33 40` as `purifier_uart_query_device_status`, and the reply is an acknowledgement carrying the 19-byte status. The firmware sends `01 33 40` every 5 s while no status has arrived.
 
 **Status is pushed once a minute and on every change.** Other people's captures show it several times a second.
 
