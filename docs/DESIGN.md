@@ -50,6 +50,7 @@ Why it looks like this:
 - Sleep is also the fan's "sleep wind" setting, which the spec defines as slowing to a final minimum speed. That is Matter's own slot for it. Apple Home does not show wind settings, so the Sleep switch stays. Other controllers can show it as a fan mode. Writing it from the matter.js shell puts the purifier in Sleep and back. No controller with a screen has been tried.
 - Child lock is also Basic Information's LocalConfigDisabled, which the spec defines as disabling configuration through the device's own interface. Same reasoning, and the same test: writing it from the matter.js shell moved the Child Lock switch both ways. The spec says that setting must never block a factory reset. Here it does, at first: the controller ignores On/Off while locked, as the manual says of every button (page 9), so the reset hold never reaches us. The lock comes off at the panel, though, and then the hold works. So the reset is two steps from the purifier, never out of reach. Removing the purifier from its controller resets it either way.
 - The purifier's four air quality levels are sent as Good, Good, Moderate and Poor. Levoit calls the first two "very good" and "good". Apple Home shows only three levels for Matter, so two had to share, and this keeps the step from fine to getting worse visible.
+- Matter's Fan Control cluster names a fixed set of modes: Off, Low, Medium, High, On, Auto, Smart. The purifiers have more — Manual, Sleep, Auto, and on some models Turbo (EverestAir) or Pet (Vital). On the way in, `mode_from_raw` in `core_bridge.cpp` collapses each MCU mode into one the fan can show: Turbo reads as High at full speed, Pet as Auto. On the way out a controller can only send Off, a speed or Auto, so a mode the fan cluster cannot name is given its own switch endpoint instead, the way Sleep is. A model's extra mode is read-only until we add that switch.
 
 ## Code
 
@@ -102,7 +103,7 @@ sequenceDiagram
 
 The UART protocol comes from [tuct/levoit](https://github.com/tuct/levoit)'s shared core in `third_party/levoit`: framing, acknowledgements, every model's status decoder and command builder, and filter tracking. This firmware maps the core's state to Matter.
 
-What is model-specific here is one row in `components/levoit/src/purifier_model.cpp`: name, speed count, airflow, Auto and PM2.5. A new Core model is a row and a Kconfig entry. Vital, Sprout, EverestAir and Eleva need their own mode mapping, and the ESP32-C3 boards another build: https://github.com/tadhglewis/levoit-matter/issues/7.
+What is model-specific here is one row in `components/levoit/src/purifier_model.cpp`: name, speed count, airflow, Auto and PM2.5. A new Core model is a row and a Kconfig entry. Vital, Sprout, EverestAir and Eleva need their own mode mapping (see the Matter data model note on fan modes), and the ESP32-C3 boards another build: https://github.com/tadhglewis/levoit-matter/issues/7.
 
 ## Filter life
 
