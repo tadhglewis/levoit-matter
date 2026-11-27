@@ -23,6 +23,7 @@ extern const ModelSpec CORE_300S;
 extern const ModelSpec CORE_400S;
 extern const ModelSpec CORE_600S;
 extern const ModelSpec SPROUT;
+extern const ModelSpec EVERESTAIR;
 
 struct PurifierState {
   bool power{false};
@@ -40,11 +41,16 @@ struct PurifierState {
   uint8_t mcu_patch{0};
 };
 
-enum class CommandKind : uint8_t { POWER, LEVEL, MODE, DISPLAY, CHILD_LOCK, FILTER_LED };
+enum class CommandKind : uint8_t { POWER, LEVEL, MODE, DISPLAY, CHILD_LOCK, FILTER_LED, FAN };
 
 struct Command {
   CommandKind kind{CommandKind::POWER};
   uint8_t value{0};
+  // For CommandKind::FAN: power/speed/mode in one call, -1 to leave a field.
+  // The core orders them per model (EverestAir sets the mode before the speed).
+  int8_t power{-1};
+  int8_t speed{-1};
+  int8_t mode{-1};
 };
 
 inline Command command_power(bool on) { return {CommandKind::POWER, on}; }
@@ -53,5 +59,13 @@ inline Command command_mode(Mode mode) { return {CommandKind::MODE, static_cast<
 inline Command command_display(bool on) { return {CommandKind::DISPLAY, on}; }
 inline Command command_child_lock(bool locked) { return {CommandKind::CHILD_LOCK, locked}; }
 inline Command command_filter_led(bool on) { return {CommandKind::FILTER_LED, on}; }
+inline Command command_fan(int power, int speed, int mode) {
+  Command c;
+  c.kind = CommandKind::FAN;
+  c.power = static_cast<int8_t>(power);
+  c.speed = static_cast<int8_t>(speed);
+  c.mode = static_cast<int8_t>(mode);
+  return c;
+}
 
 } // namespace levoit_matter

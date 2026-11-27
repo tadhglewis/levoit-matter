@@ -14,6 +14,8 @@ menu "Levoit purifier"
             bool "Core 600S"
         config LEVOIT_MODEL_SPROUT
             bool "Sprout"
+        config LEVOIT_MODEL_EVERESTAIR
+            bool "EverestAir"
     endchoice
 
     config LEVOIT_UART_TX_GPIO
