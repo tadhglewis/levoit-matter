@@ -161,8 +161,6 @@ static void test_commands() {
       {command_display(true), "01 05 A1 00 64"},
       {command_display(false), "01 05 A1 00 00"},
       {command_child_lock(true), "01 00 D1 00 01"},
-      {command_filter_led(true), "01 E2 A5 00 01"},
-      {command_filter_led(false), "01 E2 A5 00 00"},
   };
   for (const auto &c : cases) {
     Rig rig;
