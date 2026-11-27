@@ -86,6 +86,7 @@ static void test_mapping() {
 
 static void test_view() {
   CHECK(SPROUT.level_max == 4 && SPROUT.has_air_quality && SPROUT.has_auto && !SPROUT.poll_status);
+  CHECK(EVERESTAIR.level_max == 3 && EVERESTAIR.has_air_quality && EVERESTAIR.has_auto);
   MatterView sprout_top = make_view(SPROUT, state_of(true, Mode::MANUAL, 4), 4, 80);
   CHECK(sprout_top.fan_mode == FanModeView::HIGH && sprout_top.percent_setting == 100 && sprout_top.speed_current == 4);
 
@@ -147,15 +148,20 @@ static void test_plans() {
   CHECK(power_off.commands[0].value == 0);
 
   CHECK(plan_fan_level(CORE_300S, manual2, 2).count == 0);
+  // One FAN command carries speed and mode so the core orders them per model
+  // (EverestAir needs the preset before the speed).
   Plan change = plan_fan_level(CORE_300S, manual2, 3);
-  CHECK(change.count == 2);
-  CHECK(change.commands[0].kind == CommandKind::LEVEL && change.commands[0].value == 3);
-  CHECK(change.commands[1].kind == CommandKind::MODE && change.commands[1].value == 0);
+  CHECK(change.count == 1);
+  CHECK(change.commands[0].kind == CommandKind::FAN && change.commands[0].speed == 3 &&
+        change.commands[0].mode == static_cast<int>(Mode::MANUAL) && change.commands[0].power == -1);
   CHECK(change.expected_fields == (FIELD_LEVEL | FIELD_MODE));
 
   Plan from_off = plan_fan_level(CORE_300S, off, 1);
-  CHECK(from_off.count == 3 && from_off.commands[0].value == 1);
-  CHECK(plan_fan_level(CORE_300S, automatic, 9).commands[0].value == 3);
+  CHECK(from_off.count == 2 && from_off.commands[0].kind == CommandKind::POWER &&
+        from_off.commands[0].value == 1);
+  CHECK(from_off.commands[1].kind == CommandKind::FAN && from_off.commands[1].speed == 1);
+  CHECK(plan_fan_level(CORE_300S, automatic, 9).commands[0].kind == CommandKind::FAN &&
+        plan_fan_level(CORE_300S, automatic, 9).commands[0].speed == 3);
 
   CHECK(plan_fan_auto(CORE_300S, automatic).count == 0);
   Plan to_auto = plan_fan_auto(CORE_300S, manual2);

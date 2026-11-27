@@ -149,8 +149,7 @@ Plan plan_fan_level(const ModelSpec &model, const PurifierState &state,
     plan.expected_fields |= FIELD_POWER;
   }
   if (!state.power || state.mode != Mode::MANUAL || state.level != level) {
-    plan.add(command_level(level));
-    plan.add(command_mode(Mode::MANUAL));
+    plan.add(command_fan(-1, level, static_cast<int>(Mode::MANUAL)));
     plan.expected.level = level;
     plan.expected.mode = Mode::MANUAL;
     plan.expected_fields |= FIELD_LEVEL | FIELD_MODE;

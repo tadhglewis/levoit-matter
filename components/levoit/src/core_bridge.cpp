@@ -99,6 +99,9 @@ void send_to_core(core::LevoitDevice &device, const Command &command) {
   case CommandKind::FILTER_LED:
     device.sendCommand(on ? core::CommandType::setFilterLedOn : core::CommandType::setFilterLedOff);
     break;
+  case CommandKind::FAN:
+    device.on_fan_command(command.power, command.speed, command.mode);
+    break;
   }
 }
 
