@@ -14,8 +14,13 @@ All models run on [tuct/levoit](https://github.com/tuct/levoit)'s shared protoco
 | Core 600S  | 4       | Yes  | Yes         | ⚠️ |
 | Sprout     | 4       | Yes  | Yes         | ⚠️ |
 | EverestAir | 3+Turbo | Yes  | Yes         | ⚠️ |
+| Vital 100S | 4       | Yes  | Yes         | ⚠️ |
+| Vital 200S | 4       | Yes  | Yes         | ⚠️ |
+| Eleva 300X | 4       | Yes  | Yes         | ⚠️ |
 
 ✅ run on hardware   ⚠️ not run on hardware, should work
+
+Vital and Eleva are ESP32-C3, not ESP32. Run `idf.py set-target esp32c3` once before building (see [FLASHING.md](FLASHING.md#esp32-c3-models)). They compile and fit, but have not run on hardware.
 
 ## What you get in Apple Home
 
