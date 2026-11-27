@@ -4,16 +4,18 @@ Matter firmware for Levoit Core air purifiers. It runs on the ESP32 already insi
 
 ## Models
 
-| Model      | Speeds  | Auto | Air quality | State    |
-| ---------- | ------- | ---- | ----------- | -------- |
-| Core 300S  | 3       | Yes  | Yes         | Works    |
-| Core 200S  | 3       | No   | No          | Untested |
-| Core 400S  | 4       | Yes  | Yes         | Untested |
-| Core 600S  | 4       | Yes  | Yes         | Untested |
-| Sprout     | 4       | Yes  | Yes         | Untested |
-| EverestAir | 3+Turbo | Yes  | Yes         | Untested |
+All models run on [tuct/levoit](https://github.com/tuct/levoit)'s shared protocol core.
 
-All models run on [tuct/levoit](https://github.com/tuct/levoit)'s shared protocol core. Untested means it builds and should work, but only the Core 300S has been run on hardware — flash another and [report back](https://github.com/tadhglewis/levoit-matter/issues/7). Vital 100S/200S and Eleva 300X need an ESP32-C3 build; the Superior 6000S is a humidifier, out of scope.
+| Model      | Speeds  | Auto | Air quality |    |
+| ---------- | ------- | ---- | ----------- | -- |
+| Core 300S  | 3       | Yes  | Yes         | ✅ |
+| Core 200S  | 3       | No   | No          | ⚠️ |
+| Core 400S  | 4       | Yes  | Yes         | ⚠️ |
+| Core 600S  | 4       | Yes  | Yes         | ⚠️ |
+| Sprout     | 4       | Yes  | Yes         | ⚠️ |
+| EverestAir | 3+Turbo | Yes  | Yes         | ⚠️ |
+
+✅ run on hardware   ⚠️ not run on hardware, should work
 
 ## What you get in Apple Home
 
