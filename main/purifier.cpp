@@ -26,7 +26,6 @@ constexpr int RX_PIN = CONFIG_LEVOIT_UART_RX_GPIO;
 constexpr const char *NVS_NAMESPACE = "core";
 constexpr const char *CORE_KEY_PREFIX = "levoit_";
 constexpr uint32_t REPUBLISH_WINDOW_MS = 3000;
-constexpr uint32_t FILTER_LED_RESEND_MS = 1500;
 constexpr size_t MAX_TIMEOUTS = 8;
 
 // The model is chosen at build time; the core is told its key, and the rest of
@@ -67,9 +66,6 @@ bool have_view = false;
 
 uint32_t republish_started_ms = 0;
 bool republish_active = false;
-bool filter_led_on = false;
-bool filter_led_sent = false;
-uint32_t filter_led_resend_ms = 0;
 
 WifiLed wifi_led = WifiLed::OFF;
 WifiLed wifi_led_shown = WifiLed::OFF;
@@ -237,16 +233,6 @@ void publish(uint32_t now_ms, bool force) {
     return;
   last_view = view;
   have_view = callbacks.publish(view);
-
-  bool led_wanted = view.change_indication == 2;
-  bool resend = filter_led_resend_ms != 0 &&
-                static_cast<int32_t>(now_ms - filter_led_resend_ms) >= 0;
-  if (led_wanted != filter_led_on || !filter_led_sent || resend) {
-    filter_led_on = led_wanted;
-    filter_led_sent = true;
-    filter_led_resend_ms = 0;
-    send_to_core(device, command_filter_led(led_wanted));
-  }
 }
 
 void apply_plan(const Plan &plan, uint32_t now_ms) {
@@ -261,7 +247,7 @@ void apply_plan(const Plan &plan, uint32_t now_ms) {
   republish_active = true;
 }
 
-void show_wifi_led(uint32_t now_ms) {
+void show_wifi_led() {
   bool attention = identifying || hold_reset.holding();
   WifiLed shown = !attention                    ? wifi_led
                   : wifi_led == WifiLed::BLINK ? WifiLed::SOLID
@@ -269,8 +255,6 @@ void show_wifi_led(uint32_t now_ms) {
   if (shown == wifi_led_shown)
     return;
   wifi_led_shown = shown;
-  if (shown == WifiLed::SOLID)
-    filter_led_resend_ms = now_ms + FILTER_LED_RESEND_MS;
 }
 
 void set_filter_percent(uint8_t percent, uint32_t now_ms) {
@@ -281,12 +265,12 @@ void set_filter_percent(uint8_t percent, uint32_t now_ms) {
 void handle_request(const Request &request, uint32_t now_ms) {
   if (request.kind == RequestKind::WIFI_LED) {
     wifi_led = static_cast<WifiLed>(request.value);
-    show_wifi_led(now_ms);
+    show_wifi_led();
     return;
   }
   if (request.kind == RequestKind::IDENTIFY) {
     identifying = request.value != 0;
-    show_wifi_led(now_ms);
+    show_wifi_led();
     return;
   }
   if (request.kind == RequestKind::FILTER_SET) {
@@ -362,7 +346,7 @@ void on_bytes(const uint8_t *data, size_t len, uint32_t now_ms) {
     take_status(now_ms);
   }
   if (host.take_hold_changed())
-    show_wifi_led(now_ms);
+    show_wifi_led();
   if (host.take_filter_changed())
     publish(now_ms, false);
 }
@@ -381,10 +365,6 @@ void on_poll(uint32_t now_ms) {
   device.tick(now_ms);
   if (host.take_filter_changed())
     publish(now_ms, false);
-
-
-  if (filter_led_resend_ms != 0 && static_cast<int32_t>(now_ms - filter_led_resend_ms) >= 0)
-    publish(now_ms, true);
 
   if (hold_reset.due(now_ms)) {
     ESP_LOGW(TAG, "button held, resetting to pairing mode");

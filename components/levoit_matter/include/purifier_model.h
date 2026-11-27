@@ -32,7 +32,7 @@ struct PurifierState {
   uint8_t mcu_patch{0};
 };
 
-enum class CommandKind : uint8_t { POWER, LEVEL, MODE, DISPLAY, CHILD_LOCK, FILTER_LED, FAN };
+enum class CommandKind : uint8_t { POWER, LEVEL, MODE, DISPLAY, CHILD_LOCK, FAN };
 
 struct Command {
   CommandKind kind{CommandKind::POWER};
@@ -49,7 +49,6 @@ inline Command command_level(uint8_t level) { return {CommandKind::LEVEL, level}
 inline Command command_mode(Mode mode) { return {CommandKind::MODE, static_cast<uint8_t>(mode)}; }
 inline Command command_display(bool on) { return {CommandKind::DISPLAY, on}; }
 inline Command command_child_lock(bool locked) { return {CommandKind::CHILD_LOCK, locked}; }
-inline Command command_filter_led(bool on) { return {CommandKind::FILTER_LED, on}; }
 inline Command command_fan(int power, int speed, int mode) {
   Command c;
   c.kind = CommandKind::FAN;
