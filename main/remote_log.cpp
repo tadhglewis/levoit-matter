@@ -9,7 +9,7 @@
 
 namespace {
 
-constexpr size_t CAPACITY = 6144;
+constexpr size_t CAPACITY = 4096;
 constexpr size_t LINE_BUFFER = 192;
 
 char ring[CAPACITY];
