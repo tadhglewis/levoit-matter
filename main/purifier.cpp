@@ -41,6 +41,12 @@ constexpr const char *CORE_NAME = "CORE600S";
 constexpr const char *CORE_NAME = "SPROUT";
 #elif CONFIG_LEVOIT_MODEL_EVERESTAIR
 constexpr const char *CORE_NAME = "EVERESTAIR";
+#elif CONFIG_LEVOIT_MODEL_VITAL100S
+constexpr const char *CORE_NAME = "VITAL100S";
+#elif CONFIG_LEVOIT_MODEL_VITAL200S
+constexpr const char *CORE_NAME = "VITAL200S";
+#elif CONFIG_LEVOIT_MODEL_ELEVA300X
+constexpr const char *CORE_NAME = "ELEVA300X";
 #else
 constexpr const char *CORE_NAME = "CORE300S";
 #endif

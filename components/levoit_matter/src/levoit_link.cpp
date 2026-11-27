@@ -8,6 +8,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <sdkconfig.h>
+#include <soc/soc_caps.h>
 
 #include <atomic>
 #include <cinttypes>
@@ -19,7 +20,11 @@ namespace levoit_matter {
 
 namespace {
 
+#if SOC_UART_HP_NUM > 2
 constexpr uart_port_t UART_PORT = UART_NUM_2;
+#else
+constexpr uart_port_t UART_PORT = UART_NUM_1;
+#endif
 constexpr int BAUD_RATE = 115200;
 constexpr size_t QUEUE_SIZE = 16;
 constexpr uint32_t ACK_TIMEOUT_MS = 300;

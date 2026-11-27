@@ -16,12 +16,20 @@ menu "Levoit purifier"
             bool "Sprout"
         config LEVOIT_MODEL_EVERESTAIR
             bool "EverestAir"
+        config LEVOIT_MODEL_VITAL100S
+            bool "Vital 100S (ESP32-C3)"
+        config LEVOIT_MODEL_VITAL200S
+            bool "Vital 200S (ESP32-C3)"
+        config LEVOIT_MODEL_ELEVA300X
+            bool "Eleva 300X (ESP32-C3)"
     endchoice
 
     config LEVOIT_UART_TX_GPIO
         int "GPIO wired to the purifier controller's RX"
         default 16 if LEVOIT_MODEL_CORE200S
         default 22 if LEVOIT_MODEL_SPROUT
+        default 6 if LEVOIT_MODEL_VITAL100S || LEVOIT_MODEL_VITAL200S
+        default 4 if LEVOIT_MODEL_ELEVA300X
         default 17
         help
             The Core 200S uses 16. The Core 200S-P (hardware version 2.0) uses 17.
@@ -30,6 +38,7 @@ menu "Levoit purifier"
         int "GPIO wired to the purifier controller's TX"
         default 17 if LEVOIT_MODEL_CORE200S
         default 23 if LEVOIT_MODEL_SPROUT
+        default 5 if LEVOIT_MODEL_VITAL100S || LEVOIT_MODEL_VITAL200S || LEVOIT_MODEL_ELEVA300X
         default 16
         help
             The Core 200S uses 17. The Core 200S-P (hardware version 2.0) uses 16.

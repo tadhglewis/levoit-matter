@@ -1,2 +1,6 @@
+# Pick one: CORE200S CORE300S CORE400S CORE600S SPROUT EVERESTAIR VITAL100S VITAL200S ELEVA300X
 CONFIG_LEVOIT_MODEL_CORE300S=y
 # CONFIG_LEVOIT_HTTP_OTA=y
+
+# Vital and Eleva are ESP32-C3. Pick the model above, then before building
+# run: idf.py set-target esp32c3
