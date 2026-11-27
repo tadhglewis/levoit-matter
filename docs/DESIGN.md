@@ -46,27 +46,28 @@ Why it looks like this:
 | `main/commissionable_data` | Reads the setup code verifier from the factory partition. |
 | `main/device_info` | Vendor and product names, product URL, and child lock as LocalConfigDisabled. |
 
-The stack, top to bottom. Our code and tuct's core both run on the ESP32; the core talks to the purifier's own controller over the UART our transport drives.
+How it fits together. Our code and tuct's core both run on the ESP32; `levoit_matter` drives the UART to the purifier's own controller and hands frames to the core in-process.
 
 ```mermaid
-graph TB
-    Home["Apple Home / Matter controller"]
-    subgraph esp["ESP32, inside the purifier"]
-        direction TB
-        ms["main/matter_setup: Matter endpoints and clusters"]
-        pu["main/purifier: Matter-side state, requests to commands,<br/>reset hold, identify, Wi-Fi-light state"]
-        br["components/levoit_matter: bridge, core state to Matter,<br/>and UART transport, ack-wait / retry / pacing"]
-        core["tuct/levoit core, a dependency: framing, decode, acks,<br/>command builders, device state, filter tracking, lights"]
+graph LR
+    Home["Apple Home"]
+    subgraph esp["ESP32"]
+        subgraph repo["this repo"]
+            M["Matter clusters"]
+            P["purifier"]
+            L["levoit_matter<br/>bridge + transport"]
+        end
+        C["tuct/levoit core<br/>protocol · state · lights"]
     end
-    mcu["Purifier controller, the MCU"]
-    hw["Fan, PM2.5 sensor, buttons, panel lights"]
+    MCU["Purifier MCU"]
+    HW["fan · sensors<br/>buttons · lights"]
 
-    Home <-->|"Matter over Wi-Fi"| ms
-    ms <--> pu
-    pu <--> br
-    br <-->|"in-process calls"| core
-    core <-->|"UART frames, through the transport"| mcu
-    mcu <--> hw
+    Home <-->|"Matter / Wi-Fi"| M
+    M <--> P
+    P <--> L
+    L <-->|"in-process"| C
+    L <-->|"UART"| MCU
+    MCU <--> HW
 ```
 
 Two tasks. The UART task owns the serial port, the core, and `PurifierState`. The Matter task owns every cluster. One queue runs each way between them, so neither touches the other's data.
