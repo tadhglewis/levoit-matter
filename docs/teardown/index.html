@@ -786,24 +786,25 @@
       <div class="step fail">
         <div class="marker">✕</div>
         <div>
-          <h4>…and it bailed after ~132 KB, every time</h4>
-          <p>The download started but the device slammed the socket shut at a hard ceiling, far short
-            of the ~960 KB image. I varied every field it could possibly check — model string, hardware
-            rev, version, region, even the genuine vendor image — and it refused identically in about
-            60 ms. The update routine rejects the transfer for an internal reason the device only
-            writes to its serial log. The one channel I was trying to avoid.</p>
-          <span class="verdict">Closed — needs the serial log to see why</span>
+          <h4>…and the wall was the container format</h4>
+          <p>Not a field mismatch, and not the delivery. This v1.0.00 (AE) unit's image isn't the plain
+            <code>[header][image]</code> of the 2.x line — it's <code>[1-byte cipher selector][128-byte
+            AES header][image]</code>, and byte 0 has to be <code>0x01</code>, checked before any field is
+            read. My packages began with the first hex digit of the firmware's MD5, so the device hit
+            <code>invalid crypto_type</code> and bailed in ~60 ms. That content-independent rejection was
+            never a model, hardware or region mismatch — it never got as far as reading them.</p>
+          <span class="verdict"><a href="https://github.com/nico202/levoit-core300s-ota-wifi-flash/pull/3">Cracked — the 1.x container, documented</a></span>
         </div>
       </div>
     </div>
 
     <div class="callout">
       <h4>The irony</h4>
-      <p>The OTA image itself is <b>unsigned</b> — MD5 checksum only, Secure Boot off. If any download
-        had ever completed, my firmware would have flashed and run. The security that stopped me wasn't
-        protecting the image. It was the certificate pinning and the missing cloud record, both
-        accidents of this being an obscure regional SKU the vendor never shipped an update for. The
-        lock on the door was real; there was nothing behind it.</p>
+      <p>And the envelope that stopped me is a fixed-key one: the 128-byte header is AES-128-CBC, but
+        the key is just the MD5 of a constant string — the vendor's own name — and integrity is a plain
+        MD5, no signature, Secure Boot off. Reproduce the container and the image flashes. The real locks
+        were never protecting the image: the certificate pinning and the missing cloud record, both
+        accidents of this being an obscure regional SKU the vendor never shipped an update for.</p>
     </div>
 
     <p>With every software route dead, I opened the case and flashed the ESP32 over serial. The board
