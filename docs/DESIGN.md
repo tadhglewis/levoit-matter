@@ -103,7 +103,7 @@ sequenceDiagram
 - After a command the firmware holds the value it asked for, for two seconds. A status frame sent just before the purifier applied the command would otherwise make the control snap back.
 - No timing tricks to guess what a controller meant. We tried two. The fix was the On/Off cluster.
 - Show what the panel shows. In Sleep and while off the panel is dark, so Display reads off, though the purifier keeps the setting. Turning Display on then fails, so the controller never shows it on and nothing changes out of sight. Matter's answer for a request the current state cannot carry out is a refusal, not a success the device then contradicts.
-- Leaving Sleep sends Manual only. The purifier keeps the last manual speed through Sleep and resumes it.
+- Leaving Sleep restores the mode from before Sleep: Auto if you were in Auto, otherwise Manual, which resumes the last manual speed the purifier kept through Sleep. The firmware remembers the last non-Sleep mode from the status it sees.
 - The panel lights are set once after boot, since other firmware may have left them on. The core does this: it sends the filter light off at startup, then shows it once the filter runs low.
 
 ## Models

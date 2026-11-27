@@ -178,6 +178,8 @@ static void test_plans() {
   CHECK(plan_sleep(off, true).count == 2);
   Plan wake = plan_sleep(sleeping, false);
   CHECK(wake.count == 1 && wake.commands[0].kind == CommandKind::MODE && wake.commands[0].value == 0);
+  Plan wake_auto = plan_sleep(sleeping, false, Mode::AUTO);
+  CHECK(wake_auto.count == 1 && wake_auto.commands[0].value == 2);
   CHECK(plan_display(sleeping, true).count == 0);
   CHECK(plan_display(off, true).count == 0);
   CHECK(plan_display(manual2, false).count == 1);

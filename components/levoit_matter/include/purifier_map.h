@@ -55,7 +55,7 @@ Plan plan_power_on(const PurifierState &state);
 Plan plan_fan_auto(const ModelSpec &model, const PurifierState &state);
 Plan plan_fan_level(const ModelSpec &model, const PurifierState &state,
                     uint8_t level);
-Plan plan_sleep(const PurifierState &state, bool on);
+Plan plan_sleep(const PurifierState &state, bool on, Mode resume = Mode::MANUAL);
 Plan plan_display(const PurifierState &state, bool on);
 Plan plan_child_lock(const PurifierState &state, bool locked);
 

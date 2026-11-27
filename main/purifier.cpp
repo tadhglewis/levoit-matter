@@ -61,6 +61,7 @@ PurifierState raw_state;
 bool have_state = false;
 bool status_pending = false;
 uint8_t last_level = 0;
+Mode last_active_mode = Mode::MANUAL;
 MatterView last_view;
 bool have_view = false;
 
@@ -311,7 +312,9 @@ void handle_request(const Request &request, uint32_t now_ms) {
     break;
   }
   case RequestKind::SLEEP:
-    apply_plan(plan_sleep(current, request.value != 0), now_ms);
+    apply_plan(plan_sleep(current, request.value != 0,
+                          last_active_mode == Mode::AUTO ? Mode::AUTO : Mode::MANUAL),
+               now_ms);
     break;
   case RequestKind::DISPLAY:
     apply_plan(plan_display(current, request.value != 0), now_ms);
@@ -333,6 +336,8 @@ void take_status(uint32_t now_ms) {
   if (raw_state.level != 0 &&
       (raw_state.mode == Mode::MANUAL || raw_state.running_level_valid))
     last_level = raw_state.level;
+  if (raw_state.power && raw_state.mode != Mode::SLEEP)
+    last_active_mode = raw_state.mode;
   if (!ready.exchange(true))
     ESP_LOGI(TAG, "MCU %u.%u.%u", raw_state.mcu_major, raw_state.mcu_minor,
              raw_state.mcu_patch);
