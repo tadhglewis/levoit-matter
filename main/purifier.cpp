@@ -1,7 +1,6 @@
 #include "purifier.h"
 
 #include "core_bridge.h"
-#include "filter_life.h"
 #include "levoit_link.h"
 
 #include <esp_log.h>
@@ -24,9 +23,8 @@ namespace core = levoit_core;
 
 constexpr int TX_PIN = CONFIG_LEVOIT_UART_TX_GPIO;
 constexpr int RX_PIN = CONFIG_LEVOIT_UART_RX_GPIO;
-constexpr const char *NVS_NAMESPACE = "levoit";
-constexpr const char *NVS_USED_CADR = "used_cadr";
-constexpr const char *NVS_RUNTIME = "runtime_min";
+constexpr const char *NVS_NAMESPACE = "core";
+constexpr const char *CORE_KEY_PREFIX = "levoit_";
 constexpr uint32_t REPUBLISH_WINDOW_MS = 3000;
 constexpr uint32_t STATUS_QUERY_MS = 5000;
 constexpr uint32_t FILTER_LED_RESEND_MS = 1500;
@@ -71,11 +69,8 @@ std::atomic<bool> ready{false};
 std::atomic<uint8_t> filter_percent{100};
 
 const char *nvs_key(const char *core_key) {
-  if (strcmp(core_key, core::LevoitDevice::PREF_USED_CADR) == 0)
-    return NVS_USED_CADR;
-  if (strcmp(core_key, core::LevoitDevice::PREF_TOTAL_RUNTIME) == 0)
-    return NVS_RUNTIME;
-  return nullptr;
+  size_t prefix = strlen(CORE_KEY_PREFIX);
+  return strncmp(core_key, CORE_KEY_PREFIX, prefix) == 0 ? core_key + prefix : core_key;
 }
 
 struct Timeout {
@@ -125,7 +120,7 @@ public:
   bool load_u32(const char *key, uint32_t &out) override {
     const char *mapped = nvs_key(key);
     nvs_handle_t handle;
-    if (mapped == nullptr || nvs_open(NVS_NAMESPACE, NVS_READONLY, &handle) != ESP_OK)
+    if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &handle) != ESP_OK)
       return false;
     esp_err_t err = nvs_get_u32(handle, mapped, &out);
     nvs_close(handle);
@@ -135,7 +130,7 @@ public:
   void save_u32(const char *key, uint32_t value) override {
     const char *mapped = nvs_key(key);
     nvs_handle_t handle;
-    if (mapped == nullptr || nvs_open(NVS_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK)
+    if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK)
       return;
     uint32_t stored = 0;
     esp_err_t err = ESP_OK;
@@ -412,17 +407,6 @@ const ModelSpec &purifier_model() { return model; }
 void purifier_load() {
   if (requests == nullptr)
     requests = xQueueCreate(16, sizeof(Request));
-  nvs_handle_t handle;
-  if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &handle) != ESP_OK)
-    return;
-  uint32_t used_cadr = 0;
-  uint32_t runtime = 0;
-  nvs_get_u32(handle, NVS_USED_CADR, &used_cadr);
-  nvs_get_u32(handle, NVS_RUNTIME, &runtime);
-  nvs_close(handle);
-  FilterLife filter(model);
-  filter.load(used_cadr, runtime);
-  filter_percent.store(filter.percent());
 }
 
 uint8_t purifier_filter_percent() { return filter_percent.load(); }
