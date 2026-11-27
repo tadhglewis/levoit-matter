@@ -118,7 +118,7 @@ Nothing model-specific is kept here. The build picks a model (Kconfig), tells th
 
 The purifier's controller does not report it. Stock firmware tracked it on the ESP32, which is why a freshly flashed purifier reads 100%.
 
-The [core](https://github.com/tuct/levoit) tracks it: each minute the fan runs, it adds the model's airflow at the current speed, carrying the sub-m³ remainder so the slowest speeds still count, toward the filter's rated life, six months at full speed by default, and persists the total. This firmware reads the result (`FILTER_LIFE_LEFT`) and maps it to the HEPA filter cluster. Holding Sleep for three seconds clears it, as on stock. `tools/filter.sh` sets it to any value, through the core's set-percent.
+The [core](https://github.com/tuct/levoit) tracks it: while the fan runs it counts seconds weighted by the speed's share of full airflow, so a slow speed ages the filter more slowly, against the filter's rated life, six months at full speed by default. It saves the total hourly and at shutdown, and migrates an older cubic-metre count once so nothing jumps. This firmware reads the result (`FILTER_LIFE_LEFT`) and maps it to the HEPA filter cluster. Holding Sleep for three seconds clears it, as on stock. `tools/filter.sh` sets it to any value, through the core's set-percent.
 
 ## Pairing and reset
 
