@@ -13,11 +13,11 @@ Note the filter percentage VeSync shows. You will need it at the end.
 ## 1. Tools
 
 ```bash
-git clone --recursive https://github.com/tadhglewis/levoit-matter.git
+git clone https://github.com/tadhglewis/levoit-matter.git
 cd levoit-matter
 ```
 
-The protocol comes from [tuct/levoit](https://github.com/tuct/levoit) as a submodule. In an existing clone, run `git submodule update --init`.
+The protocol core comes from [tuct/levoit](https://github.com/tuct/levoit); the ESP-IDF component manager fetches it on the first build.
 
 To build you need ESP-IDF 5.5.6. Install it [the way Espressif says](https://docs.espressif.com/projects/esp-idf/en/v5.5.6/esp32/get-started/index.html) and run its `export.sh`.
 
@@ -58,7 +58,7 @@ Set the model in it: `CONFIG_LEVOIT_MODEL_CORE300S=y`, or `CORE200S`, `CORE400S`
 
 ```bash
 idf.py build
-./components/levoit/host_test/run.sh
+./components/levoit_matter/host_test/run.sh
 ```
 
 The first build takes about 15 minutes. You should get a 1.48 MB image and `0 failures`.

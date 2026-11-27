@@ -106,8 +106,17 @@ dependencies:
     source:
       type: idf
     version: 5.5.6
+  levoit:
+    component_hash: c91344665604b1c365f55bf2349200fad1ecaa8ea4745be9062f6972684209d9
+    dependencies: []
+    source:
+      git: https://github.com/tuct/levoit.git
+      path: components/levoit
+      type: git
+    version: 4bd9801080dfb7de6cab950726664ad9b250e12f
 direct_dependencies:
 - espressif/esp_matter
-manifest_hash: 828b8378063bedce1f061394cf9084e7bfd5083f89528d208d153014e08c4285
+- levoit
+manifest_hash: 6e92c0a4a33fa639452e8fda87d6c56dd3006d1164c6826d651d07a4734b2ad7
 target: esp32
 version: 2.0.0
