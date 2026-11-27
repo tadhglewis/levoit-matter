@@ -13,44 +13,6 @@ uint8_t frame_checksum(const uint8_t *data, size_t len) {
   return static_cast<uint8_t>(0xFF - (sum & 0xFF));
 }
 
-size_t encode_frame(uint8_t type, uint8_t counter, uint32_t command,
-                    uint8_t trailer, const uint8_t *payload, size_t payload_len,
-                    uint8_t *out, size_t out_size) {
-  size_t frame_len = HEADER_LEN + payload_len;
-  if (payload_len > MAX_PAYLOAD || out_size < frame_len)
-    return 0;
-  out[0] = FRAME_START;
-  out[1] = type;
-  out[2] = counter;
-  out[3] = static_cast<uint8_t>(4 + payload_len);
-  out[4] = 0x00;
-  out[5] = 0x00;
-  out[6] = static_cast<uint8_t>(command >> 16);
-  out[7] = static_cast<uint8_t>(command >> 8);
-  out[8] = static_cast<uint8_t>(command);
-  out[9] = trailer;
-  if (payload_len > 0)
-    memcpy(out + HEADER_LEN, payload, payload_len);
-  out[5] = frame_checksum(out, frame_len);
-  return frame_len;
-}
-
-size_t encode_ack(uint8_t counter, uint32_t command, bool alternate,
-                  uint8_t *out, size_t out_size) {
-  size_t len = encode_frame(alternate ? TYPE_ACK_ALT : TYPE_ACK, counter, command,
-                            alternate ? 0x01 : 0x00, nullptr, 0, out, out_size);
-  if (len == 0)
-    return 0;
-  if (!alternate)
-    out[4] = 0xFF;
-  out[5] = frame_checksum(out, len);
-  return len;
-}
-
-uint8_t next_counter(uint8_t counter) {
-  return counter == 0xFF ? 0x10 : static_cast<uint8_t>(counter + 1);
-}
-
 void FrameParser::feed(const uint8_t *data, size_t len) {
   if (len > BUFFER_SIZE) {
     data += len - BUFFER_SIZE;

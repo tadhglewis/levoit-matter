@@ -421,7 +421,7 @@ esp_err_t purifier_start(const PurifierCallbacks &purifier_callbacks) {
   esp_log_level_set("levoit.decoder", ESP_LOG_WARN);
   esp_log_level_set("levoit.core", ESP_LOG_WARN);
   esp_log_level_set("levoit.core_cmd", ESP_LOG_WARN);
-  device.set_device_model(core_model_name(model));
+  device.set_device_model(model.core_name);
   device.note_number_state(core::NumberType::FILTER_LIFETIME_MONTHS, model.filter_months);
   LinkHandlers handlers = {on_bytes, on_poll};
   return link_start(TX_PIN, RX_PIN, handlers);

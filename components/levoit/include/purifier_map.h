@@ -1,6 +1,6 @@
 #pragma once
 
-#include "levoit_core.h"
+#include "purifier_model.h"
 
 #include <cstdint>
 

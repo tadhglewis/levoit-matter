@@ -514,7 +514,7 @@ esp_err_t matter_setup_start() {
 
   if (!create_purifier_endpoint(node))
     return ESP_FAIL;
-  if (levoit_matter::has_air_quality(levoit_matter::purifier_model()) &&
+  if (levoit_matter::purifier_model().has_air_quality &&
       !create_air_quality_endpoint(node))
     return ESP_FAIL;
   sleep_endpoint = create_switch_endpoint(node, 1, "Sleep");

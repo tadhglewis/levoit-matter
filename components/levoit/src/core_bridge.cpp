@@ -16,16 +16,6 @@ uint8_t speed_in_range(const ModelSpec &model, int speed) {
 
 } // namespace
 
-const char *core_model_name(const ModelSpec &model) {
-  if (&model == &CORE_200S)
-    return "CORE200S";
-  if (&model == &CORE_400S)
-    return "CORE400S";
-  if (&model == &CORE_600S)
-    return "CORE600S";
-  return "CORE300S";
-}
-
 bool state_from_core(const ModelSpec &model, const core::LevoitState &state,
                      const PurifierState &previous, PurifierState &out) {
   const core::FanState &fan = state.fan;
@@ -37,15 +27,10 @@ bool state_from_core(const ModelSpec &model, const core::LevoitState &state,
   if (fan.mode >= 0 && fan.mode <= static_cast<int>(Mode::AUTO))
     out.mode = static_cast<Mode>(fan.mode);
 
-  bool reports_running = &model == &CORE_300S;
   uint8_t speed = speed_in_range(model, fan.speed);
-  out.running_level_valid = reports_running;
-  if (out.power && out.mode != Mode::MANUAL && reports_running) {
-    out.running_level = speed;
-  } else {
-    out.level = speed;
-    out.running_level = out.power ? speed : 0;
-  }
+  out.running_level_valid = fan.selected_speed != -1;
+  out.level = out.running_level_valid ? speed_in_range(model, fan.selected_speed) : speed;
+  out.running_level = out.power ? speed : 0;
 
   bool on = false;
   if (state.get_switch(core::SwitchType::DISPLAY, on))
@@ -60,10 +45,6 @@ bool state_from_core(const ModelSpec &model, const core::LevoitState &state,
     out.pm25_valid = true;
     out.pm25 = static_cast<uint16_t>(value);
   }
-
-  uint32_t select = 0;
-  if (state.get_select(core::SelectType::AUTO_MODE, select))
-    out.auto_profile = static_cast<uint8_t>(select);
 
   std::string version;
   unsigned major = 0, minor = 0, patch = 0;
@@ -84,30 +65,27 @@ uint8_t filter_percent_from_core(float life_left) {
   return static_cast<uint8_t>(std::ceil(life_left - 0.001f));
 }
 
-bool send_to_core(core::LevoitDevice &device, const Command &command) {
-  const uint8_t *p = command.payload;
-  switch (command.command) {
-  case 0x0100A0:
-    device.on_fan_command(p[0] != 0 ? 1 : 0, -1, -1);
-    return true;
-  case 0x0160A2:
-    device.on_fan_command(-1, p[2], -1);
-    return true;
-  case 0x01E0A5:
-    device.on_fan_command(-1, -1, p[0]);
-    return true;
-  case 0x0105A1:
-    device.on_switch_command(core::SwitchType::DISPLAY, p[0] != 0);
-    return true;
-  case 0x0100D1:
-    device.on_switch_command(core::SwitchType::CHILD_LOCK, p[0] != 0);
-    return true;
-  case 0x01E2A5:
-    device.sendCommand(p[0] != 0 ? core::CommandType::setFilterLedOn
-                                 : core::CommandType::setFilterLedOff);
-    return true;
-  default:
-    return false;
+void send_to_core(core::LevoitDevice &device, const Command &command) {
+  bool on = command.value != 0;
+  switch (command.kind) {
+  case CommandKind::POWER:
+    device.on_fan_command(on ? 1 : 0, -1, -1);
+    break;
+  case CommandKind::LEVEL:
+    device.on_fan_command(-1, command.value, -1);
+    break;
+  case CommandKind::MODE:
+    device.on_fan_command(-1, -1, command.value);
+    break;
+  case CommandKind::DISPLAY:
+    device.on_switch_command(core::SwitchType::DISPLAY, on);
+    break;
+  case CommandKind::CHILD_LOCK:
+    device.on_switch_command(core::SwitchType::CHILD_LOCK, on);
+    break;
+  case CommandKind::FILTER_LED:
+    device.sendCommand(on ? core::CommandType::setFilterLedOn : core::CommandType::setFilterLedOff);
+    break;
   }
 }
 

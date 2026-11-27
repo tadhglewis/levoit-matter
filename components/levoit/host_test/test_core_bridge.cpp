@@ -1,13 +1,10 @@
 #include "core_bridge.h"
-#include "filter_life.h"
-#include "levoit_core.h"
 #include "levoit_frame.h"
 #include "purifier_map.h"
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <fstream>
 #include <map>
 #include <sstream>
 #include <string>
@@ -99,129 +96,89 @@ static Bytes hex_bytes(const std::string &text) {
   return out;
 }
 
-static std::vector<Bytes> mcu_frames(const char *path) {
-  std::vector<Bytes> frames;
-  std::ifstream in(path);
-  std::string line;
-  while (std::getline(in, line)) {
-    size_t at = line.find("MCU->ESP");
-    if (at != std::string::npos)
-      frames.push_back(hex_bytes(line.substr(at + 8)));
-  }
-  return frames;
+static MatterView view_after(Rig &rig, PurifierState &state, uint8_t &last_level, const char *frame) {
+  rig.feed(hex_bytes(frame));
+  CHECK(state_from_core(CORE_300S, rig.device.state(), state, state));
+  if (state.level != 0 && (state.mode == Mode::MANUAL || state.running_level_valid))
+    last_level = state.level;
+  return make_view(CORE_300S, state, last_level, 80);
 }
 
-static bool own_decode(const Bytes &raw, PurifierState &state) {
-  FrameParser parser;
-  Frame frame;
-  parser.feed(raw.data(), raw.size());
-  if (!parser.next(frame))
-    return false;
-  uint32_t layout = frame.type == TYPE_ACK
-                        ? status_command_for_reply(CORE_300S, frame.command)
-                        : frame.command;
-  if (layout == 0 || !is_status_command(CORE_300S, layout))
-    return false;
-  return decode_status(CORE_300S, layout, frame.payload, frame.payload_len, state);
-}
-
-static void test_capture_parity(const char *path) {
-  std::vector<Bytes> frames = mcu_frames(path);
-  CHECK(frames.size() > 40);
-
+static void test_capture() {
   Rig rig;
-  PurifierState own;
-  PurifierState bridged;
-  bool have_bridged = false;
-  uint8_t own_last = 0;
-  uint8_t bridged_last = 0;
-  int compared = 0;
+  PurifierState state;
+  uint8_t last_level = 0;
 
-  for (const Bytes &frame : frames) {
-    int before = rig.host.fan_reports;
-    rig.feed(frame);
-    if (rig.host.fan_reports != before)
-      have_bridged = state_from_core(CORE_300S, rig.device.state(), bridged, bridged);
+  MatterView speed3 = view_after(rig, state, last_level,
+      "A5 22 D8 17 00 63 01 32 40 00 00 00 01 01 00 03 00 64 01 03 00 01 05 00 00 00 00 00 00");
+  CHECK(speed3.fan_mode == FanModeView::HIGH && speed3.percent_setting == 100 && speed3.speed_current == 3);
+  CHECK(speed3.display && !speed3.child_lock && !speed3.sleep);
+  CHECK(speed3.air_quality == 1 && speed3.pm25_valid && speed3.pm25 == 5);
+  CHECK(state.mcu_major == 1 && state.mcu_minor == 0 && state.mcu_patch == 0);
 
-    PurifierState decoded;
-    if (!own_decode(frame, decoded))
-      continue;
-    own = decoded;
-    if (own.level != 0 && (own.mode == Mode::MANUAL || own.running_level_valid))
-      own_last = own.level;
-    CHECK(have_bridged);
-    if (!have_bridged)
-      continue;
-    if (bridged.level != 0 && (bridged.mode == Mode::MANUAL || bridged.running_level_valid))
-      bridged_last = bridged.level;
+  MatterView sleep = view_after(rig, state, last_level,
+      "A5 22 DC 17 00 61 01 32 40 00 00 00 01 01 01 03 00 64 01 00 00 01 05 00 00 00 00 00 00");
+  CHECK(sleep.sleep && sleep.fan_mode == FanModeView::HIGH && sleep.percent_setting == 33);
+  CHECK(!sleep.display && state.level == 3 && state.running_level == 0);
 
-    MatterView mine = make_view(CORE_300S, own, own_last, 80);
-    MatterView theirs = make_view(CORE_300S, bridged, bridged_last, 80);
-    compared++;
-    CHECK(mine == theirs);
-    CHECK(own.power == bridged.power);
-    CHECK(own.mode == bridged.mode);
-    CHECK(own.child_lock == bridged.child_lock);
-    CHECK(own.air_quality == bridged.air_quality);
-    CHECK(own.pm25 == bridged.pm25);
-    if (mine != theirs)
-      printf("  view differs at frame counter %02X\n", frame[2]);
-  }
-  CHECK(compared > 30);
-  printf("capture parity: %d status frames compared\n", compared);
+  MatterView automatic = view_after(rig, state, last_level,
+      "A5 22 E0 17 00 5C 01 32 40 00 00 00 01 01 02 03 00 64 01 00 00 01 05 00 00 00 00 00 00");
+  CHECK(automatic.fan_mode == FanModeView::AUTO && automatic.current_valid && automatic.speed_current == 1);
+  CHECK(state.level == 3 && last_level == 3);
+
+  MatterView display_off = view_after(rig, state, last_level,
+      "A5 22 E4 17 00 C4 01 32 40 00 00 00 01 01 00 01 00 00 00 01 00 01 01 00 00 00 00 00 00");
+  CHECK(!display_off.display && display_off.speed_current == 1 && display_off.pm25 == 1);
+
+  MatterView locked = view_after(rig, state, last_level,
+      "A5 22 E8 17 00 5A 01 32 40 00 00 00 01 01 00 01 00 64 01 01 00 01 01 00 01 00 00 00 00");
+  CHECK(locked.child_lock && locked.display);
+
+  MatterView off = view_after(rig, state, last_level,
+      "A5 22 D4 17 00 D6 01 32 40 00 00 00 01 00 00 01 00 00 01 FF 00 01 01 00 00 00 00 00 00");
+  CHECK(off.fan_mode == FanModeView::OFF && !off.current_valid && !off.display);
+
+  Rig cold;
+  PurifierState boot;
+  uint8_t boot_last = 0;
+  view_after(cold, boot, boot_last,
+      "A5 22 E0 17 00 5C 01 32 40 00 00 00 01 01 02 03 00 64 01 00 00 01 05 00 00 00 00 00 00");
+  CHECK(boot.mode == Mode::AUTO && boot_last == 3);
 }
 
-static void test_commands_match_bytes() {
-  const Command commands[] = {
-      command_power(true),        command_power(false),
-      command_level(1),           command_level(2),
-      command_level(3),           command_mode(Mode::MANUAL),
-      command_mode(Mode::SLEEP),  command_mode(Mode::AUTO),
-      command_display(true),      command_display(false),
-      command_child_lock(true),   command_child_lock(false),
-      command_filter_led(true),   command_filter_led(false),
+static void test_commands() {
+  const struct {
+    Command command;
+    const char *bytes;
+  } cases[] = {
+      {command_power(true), "01 00 A0 00 01"},
+      {command_power(false), "01 00 A0 00 00"},
+      {command_level(2), "01 60 A2 00 01 01 02"},
+      {command_mode(Mode::MANUAL), "01 E0 A5 00 00"},
+      {command_mode(Mode::SLEEP), "01 E0 A5 00 01"},
+      {command_mode(Mode::AUTO), "01 E0 A5 00 02"},
+      {command_display(true), "01 05 A1 00 64"},
+      {command_display(false), "01 05 A1 00 00"},
+      {command_child_lock(true), "01 00 D1 00 01"},
+      {command_filter_led(true), "01 E2 A5 00 01"},
+      {command_filter_led(false), "01 E2 A5 00 00"},
   };
-  for (const Command &command : commands) {
+  for (const auto &c : cases) {
     Rig rig;
-    CHECK(send_to_core(rig.device, command));
+    send_to_core(rig.device, c.command);
     CHECK(rig.platform.tx.size() == 1);
     if (rig.platform.tx.size() != 1)
       continue;
     const Bytes &sent = rig.platform.tx[0];
-    uint8_t expected[MAX_FRAME_LEN];
-    size_t len = encode_frame(TYPE_SEND, sent[2], command.command, 0x00,
-                              command.payload, command.payload_len, expected,
-                              sizeof(expected));
-    CHECK(sent.size() == len);
-    CHECK(len > 0 && memcmp(sent.data(), expected, len) == 0);
+    CHECK(sent[0] == 0xA5 && sent[1] == TYPE_SEND && sent[5] == frame_checksum(sent.data(), sent.size()));
+    CHECK(Bytes(sent.begin() + 6, sent.end()) == hex_bytes(c.bytes));
   }
-  Rig rig;
-  CHECK(!send_to_core(rig.device, command_wifi_led(WifiLed::SOLID)));
 }
 
 static void test_state_needs_fan_report() {
   Rig rig;
   PurifierState out;
   CHECK(!state_from_core(CORE_300S, rig.device.state(), PurifierState{}, out));
-}
-
-static void test_auto_keeps_manual_pick() {
-  Rig rig;
-  PurifierState state;
-  rig.feed(hex_bytes("A5 22 D8 17 00 63 01 32 40 00 00 00 01 01 00 03 00 64 01 03 00 01 05 00 00 00 00 00 00"));
-  CHECK(state_from_core(CORE_300S, rig.device.state(), state, state));
-  CHECK(state.level == 3);
-  rig.feed(hex_bytes("A5 22 E0 17 00 5C 01 32 40 00 00 00 01 01 02 03 00 64 01 00 00 01 05 00 00 00 00 00 00"));
-  CHECK(state_from_core(CORE_300S, rig.device.state(), state, state));
-  CHECK(state.mode == Mode::AUTO);
-  CHECK(state.level == 3);
-  CHECK(state.running_level_valid && state.running_level == 0);
-
-  Rig cold;
-  PurifierState boot;
-  cold.feed(hex_bytes("A5 22 E0 17 00 5C 01 32 40 00 00 00 01 01 02 03 00 64 01 00 00 01 05 00 00 00 00 00 00"));
-  CHECK(state_from_core(CORE_300S, cold.device.state(), boot, boot));
-  CHECK(boot.level == 0);
 }
 
 static void test_button_hold() {
@@ -245,26 +202,22 @@ static void test_button_hold() {
   CHECK(!rig.host.button_held);
 }
 
-static void test_filter_percent_matches() {
+static void test_filter_percent() {
+  const uint64_t capacity = uint64_t(CORE_300S.cadr_m3h) * 24 * 30 * CORE_300S.filter_months;
   for (uint8_t percent = 0; percent <= 100; percent++) {
-    FilterLife own(CORE_300S);
-    own.set_percent(percent);
     Rig rig;
-    rig.device.set_used_cadr(own.used_cadr());
+    rig.device.set_used_cadr(static_cast<uint32_t>((capacity * (100 - percent) + 99) / 100));
     rig.device.publish_filter_stats_now();
-    CHECK(filter_percent_from_core(rig.host.filter_left) == own.percent());
+    CHECK(filter_percent_from_core(rig.host.filter_left) == percent);
   }
 }
 
-int main(int argc, char **argv) {
-  const char *capture = argc > 1 ? argv[1]
-                                 : "../../../third_party/levoit/devices/levoit-core300s/uart/status_32_40.txt";
-  test_capture_parity(capture);
-  test_commands_match_bytes();
+int main() {
+  test_capture();
+  test_commands();
   test_state_needs_fan_report();
-  test_auto_keeps_manual_pick();
   test_button_hold();
-  test_filter_percent_matches();
+  test_filter_percent();
   printf("%d checks, %d failures\n", checks, failures);
   return failures == 0 ? 0 : 1;
 }
