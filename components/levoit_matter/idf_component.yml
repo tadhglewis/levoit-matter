@@ -1,8 +1,10 @@
 # The Matter firmware's bridge to the Levoit protocol core. The core is tuct's
 # levoit component (docs/shared-core.md step 4), pulled at a pinned commit until
-# tuct tags a release that includes it. ESPHome is not involved here.
+# tuct tags a release that includes it; then this becomes a version like "1.8.0".
+# To bump: change `version` below, delete dependencies.lock (or run
+# `idf.py update-dependencies`), and rebuild. The host test reads this same pin.
 dependencies:
   levoit:
     git: https://github.com/tuct/levoit.git
     path: components/levoit
-    version: "4bd9801080dfb7de6cab950726664ad9b250e12f"
+    version: "70d6269b003a"

@@ -12,3 +12,4 @@ __pycache__/
 dist/
 .DS_Store
 tools/matter-ota/node_modules/
+dependencies.lock

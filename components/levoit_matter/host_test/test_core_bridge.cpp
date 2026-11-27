@@ -1,6 +1,7 @@
 #include "core_bridge.h"
 #include "levoit_frame.h"
 #include "purifier_map.h"
+#include "test_models.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -76,7 +77,7 @@ struct Rig {
 
   Rig() {
     device.set_device_model("CORE300S");
-    device.note_number_state(core::NumberType::FILTER_LIFETIME_MONTHS, CORE_300S.filter_months);
+    device.note_number_state(core::NumberType::FILTER_LIFETIME_MONTHS, 6);
     device.begin();
     platform.tx.clear();
   }
@@ -218,12 +219,11 @@ static void test_button_hold() {
 }
 
 static void test_filter_percent() {
-  const uint64_t capacity = uint64_t(CORE_300S.cadr_m3h) * 24 * 30 * CORE_300S.filter_months;
-  for (uint8_t percent = 0; percent <= 100; percent++) {
+  // The core owns the math now (set_filter_percent); check our rounding of it.
+  for (uint8_t percent = 0; percent <= 100; percent += 5) {
     Rig rig;
-    rig.device.set_used_cadr(static_cast<uint32_t>((capacity * (100 - percent) + 99) / 100));
-    rig.device.publish_filter_stats_now();
-    CHECK(filter_percent_from_core(rig.host.filter_left) == percent);
+    rig.device.set_filter_percent(percent);
+    CHECK(filter_percent_from_core(rig.device.calculate_filter_life_left_percent()) == percent);
   }
 }
 

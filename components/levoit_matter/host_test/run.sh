@@ -8,7 +8,7 @@ cd "$(dirname "$0")"
 mkdir -p build
 
 c++ -std=c++17 -Wall -Wextra -Werror -I ../include \
-  test_logic.cpp ../src/levoit_frame.cpp ../src/purifier_map.cpp ../src/purifier_model.cpp \
+  test_logic.cpp ../src/levoit_frame.cpp ../src/purifier_map.cpp \
   -o build/test_logic
 ./build/test_logic
 
@@ -32,5 +32,5 @@ for f in levoit_device decoder core_status vital_status sprout_status superior_s
 done
 c++ -std=c++17 -Wall -Wextra -Werror -DLEVOIT_HOST_QUIET -I ../include -iquote "$CORE" \
   test_core_bridge.cpp ../src/core_bridge.cpp ../src/levoit_frame.cpp ../src/purifier_map.cpp \
-  ../src/purifier_model.cpp build/core_*.o -o build/test_core_bridge
+  build/core_*.o -o build/test_core_bridge
 ./build/test_core_bridge

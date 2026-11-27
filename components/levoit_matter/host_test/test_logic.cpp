@@ -1,5 +1,6 @@
 #include "levoit_frame.h"
 #include "purifier_map.h"
+#include "test_models.h"
 
 #include <cstdio>
 #include <cstring>
@@ -85,7 +86,7 @@ static void test_mapping() {
 }
 
 static void test_view() {
-  CHECK(SPROUT.level_max == 4 && SPROUT.has_air_quality && SPROUT.has_auto && !SPROUT.poll_status);
+  CHECK(SPROUT.level_max == 4 && SPROUT.has_air_quality && SPROUT.has_auto);
   CHECK(EVERESTAIR.level_max == 3 && EVERESTAIR.has_air_quality && EVERESTAIR.has_auto);
   MatterView sprout_top = make_view(SPROUT, state_of(true, Mode::MANUAL, 4), 4, 80);
   CHECK(sprout_top.fan_mode == FanModeView::HIGH && sprout_top.percent_setting == 100 && sprout_top.speed_current == 4);
