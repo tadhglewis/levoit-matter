@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
       - run: ./components/levoit/host_test/run.sh
       - run: for f in tools/*.sh; do sh -n "$f"; done
       - run: python3 -m py_compile tools/mcu_sim.py

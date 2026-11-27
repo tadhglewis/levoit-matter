@@ -11,6 +11,7 @@
 
 #include <atomic>
 #include <cinttypes>
+#include <cstring>
 
 static const char *const TAG = "link";
 
@@ -25,16 +26,18 @@ constexpr uint32_t ACK_TIMEOUT_MS = 300;
 constexpr uint32_t MIN_GAP_MS = 60;
 constexpr uint8_t MAX_ATTEMPTS = 3;
 constexpr uint32_t ALIVE_WINDOW_MS = 30000;
-constexpr uint32_t STATUS_QUERY_MS = 5000;
 constexpr uint32_t PARTIAL_FRAME_MS = 50;
-constexpr uint32_t TASK_STACK = 6144;
+constexpr uint32_t TASK_STACK = 8192;
 
-const ModelSpec *model = nullptr;
+struct Pending {
+  uint8_t bytes[MAX_FRAME_LEN];
+  size_t len;
+};
+
 LinkHandlers handlers{};
 FrameParser parser;
-uint8_t counter = 0x10;
 
-Command queue[QUEUE_SIZE];
+Pending queue[QUEUE_SIZE];
 size_t queue_head = 0;
 size_t queue_count = 0;
 
@@ -43,14 +46,12 @@ uint8_t attempts = 0;
 uint32_t last_tx_ms = 0;
 std::atomic<uint32_t> last_frame_ms{0};
 std::atomic<bool> frame_seen{false};
-uint32_t last_status_ms = 0;
-uint32_t last_query_ms = 0;
-bool first_query_sent = false;
-bool request_v2 = true;
-bool request_known = false;
 uint32_t last_bytes_ms = 0;
 
-uint32_t now_ms() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
+uint32_t command_of(const uint8_t *frame) {
+  return (static_cast<uint32_t>(frame[6]) << 16) |
+         (static_cast<uint32_t>(frame[7]) << 8) | frame[8];
+}
 
 void log_frame(const char *direction, const uint8_t *data, size_t len) {
 #if CONFIG_LEVOIT_LOG_FRAMES
@@ -71,28 +72,19 @@ void log_frame(const char *direction, const uint8_t *data, size_t len) {
 #endif
 }
 
-void write_frame(uint8_t type, uint32_t command, uint8_t trailer,
-                 const uint8_t *payload, size_t payload_len) {
-  uint8_t frame[MAX_FRAME_LEN];
-  size_t len = encode_frame(type, counter, command, trailer, payload,
-                            payload_len, frame, sizeof(frame));
-  if (len == 0)
-    return;
+void write_raw(const uint8_t *frame, size_t len) {
   log_frame("tx", frame, len);
   int written = uart_write_bytes(UART_PORT, frame, len);
   if (written != static_cast<int>(len))
-    ESP_LOGE(TAG, "uart write failed: %d of %u", written,
-             static_cast<unsigned>(len));
-  counter = next_counter(counter);
+    ESP_LOGE(TAG, "uart write failed: %d of %u", written, static_cast<unsigned>(len));
 }
 
 void transmit_head() {
-  const Command &command = queue[queue_head];
-  write_frame(TYPE_SEND, command.command, 0x00, command.payload,
-              command.payload_len);
+  const Pending &head = queue[queue_head];
+  write_raw(head.bytes, head.len);
   awaiting_ack = true;
   attempts++;
-  last_tx_ms = now_ms();
+  last_tx_ms = link_now_ms();
 }
 
 void pop_head() {
@@ -102,84 +94,22 @@ void pop_head() {
   attempts = 0;
 }
 
-void write_ack(const Frame &received) {
-  bool alternate =
-      model->status_ack_alt && is_status_command(*model, received.command);
-  uint8_t frame[HEADER_LEN];
-  size_t len = encode_ack(alternate ? received.counter : counter,
-                          received.command, alternate, frame, sizeof(frame));
-  if (len == 0)
-    return;
-  log_frame("tx", frame, len);
-  uart_write_bytes(UART_PORT, frame, len);
-  if (!alternate)
-    counter = next_counter(counter);
-}
-
-bool deliver_status(const Frame &frame, uint32_t layout_command, uint32_t now) {
-  PurifierState state;
-  if (!decode_status(*model, layout_command, frame.payload, frame.payload_len, state)) {
-    ESP_LOGW(TAG, "status frame rejected, %u bytes",
-             static_cast<unsigned>(frame.payload_len));
-    return false;
-  }
-  if (last_status_ms == 0)
-    ESP_LOG_BUFFER_HEX(TAG, frame.payload, frame.payload_len);
-  last_status_ms = now == 0 ? 1 : now;
-  handlers.on_status(state, now);
-  return true;
-}
-
-void handle_frame(const Frame &frame) {
-  uint32_t now = now_ms();
-  last_frame_ms.store(now);
+void note_frame(const Frame &frame) {
+  last_frame_ms.store(link_now_ms());
   frame_seen.store(true);
   log_frame("rx", frame.raw, frame.raw_len);
-
-  if (frame.type == TYPE_ACK) {
-    if (awaiting_ack && frame.command == queue[queue_head].command)
-      pop_head();
-    uint32_t layout_command = status_command_for_reply(*model, frame.command);
-    if (layout_command != 0 && frame.payload_len > 0 &&
-        deliver_status(frame, layout_command, now)) {
-      request_known = true;
-      request_v2 = frame.command == model->status_request_v2;
-    }
-    return;
-  }
-  if (frame.type != TYPE_SEND) {
-    ESP_LOGW(TAG, "unexpected frame type 0x%02X command %06" PRIX32, frame.type,
-             frame.command);
-    return;
-  }
-
-  write_ack(frame);
-
-  if (is_status_command(*model, frame.command)) {
-    if (deliver_status(frame, frame.command, now) && !request_known)
-      request_v2 = model->status_command_v2 != 0 &&
-                   frame.command == model->status_command_v2;
-    return;
-  }
-  if (frame.command == COMMAND_FILTER_RESET) {
-    handlers.on_filter_reset(now);
-    return;
-  }
-  if (frame.command == COMMAND_BUTTON_HOLD && frame.payload_len >= 1) {
-    handlers.on_button_hold(frame.payload[0], now);
-    return;
-  }
-  ESP_LOGI(TAG, "unhandled command %06" PRIX32 ", %u bytes", frame.command,
-           static_cast<unsigned>(frame.payload_len));
+  if (frame.type == TYPE_ACK && awaiting_ack &&
+      frame.command == command_of(queue[queue_head].bytes))
+    pop_head();
 }
 
 void drive_transmit() {
-  uint32_t now = now_ms();
+  uint32_t now = link_now_ms();
   if (awaiting_ack) {
     if (now - last_tx_ms < ACK_TIMEOUT_MS)
       return;
     if (attempts >= MAX_ATTEMPTS) {
-      ESP_LOGW(TAG, "no ack for command %06" PRIX32, queue[queue_head].command);
+      ESP_LOGW(TAG, "no ack for command %06" PRIX32, command_of(queue[queue_head].bytes));
       pop_head();
     } else {
       transmit_head();
@@ -194,38 +124,29 @@ void link_task(void *) {
   uint8_t chunk[128];
   for (;;) {
     int n = uart_read_bytes(UART_PORT, chunk, sizeof(chunk), pdMS_TO_TICKS(20));
-    uint32_t now = now_ms();
+    uint32_t now = link_now_ms();
     Frame frame;
     if (n > 0) {
       last_bytes_ms = now;
       parser.feed(chunk, static_cast<size_t>(n));
       while (parser.next(frame))
-        handle_frame(frame);
+        note_frame(frame);
+      handlers.on_bytes(chunk, static_cast<size_t>(n), now);
     } else if (parser.buffered() > 0 && now - last_bytes_ms > PARTIAL_FRAME_MS) {
       parser.skip_byte();
       while (parser.next(frame))
-        handle_frame(frame);
+        note_frame(frame);
     }
-    now = now_ms();
-    bool query_due = !first_query_sent || (now - last_status_ms > STATUS_QUERY_MS &&
-                                           now - last_query_ms > STATUS_QUERY_MS);
-    if (model->status_request != 0 && queue_count == 0 && query_due) {
-      first_query_sent = true;
-      last_query_ms = now;
-      link_send(command_status_request(*model, request_v2));
-      if (!request_known && model->status_request_v2 != 0)
-        request_v2 = !request_v2;
-    }
-    handlers.on_poll(now);
+    handlers.on_poll(link_now_ms());
     drive_transmit();
   }
 }
 
 } // namespace
 
-esp_err_t link_start(const ModelSpec &spec, int tx_pin, int rx_pin,
-                     const LinkHandlers &link_handlers) {
-  model = &spec;
+uint32_t link_now_ms() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
+
+esp_err_t link_start(int tx_pin, int rx_pin, const LinkHandlers &link_handlers) {
   handlers = link_handlers;
 
   uart_config_t config = {};
@@ -241,32 +162,38 @@ esp_err_t link_start(const ModelSpec &spec, int tx_pin, int rx_pin,
     return err;
   err = uart_param_config(UART_PORT, &config);
   if (err == ESP_OK)
-    err = uart_set_pin(UART_PORT, tx_pin, rx_pin, UART_PIN_NO_CHANGE,
-                       UART_PIN_NO_CHANGE);
+    err = uart_set_pin(UART_PORT, tx_pin, rx_pin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
   if (err != ESP_OK) {
     uart_driver_delete(UART_PORT);
     return err;
   }
-  if (xTaskCreate(link_task, "levoit_link", TASK_STACK, nullptr, 5, nullptr) !=
-      pdPASS) {
+  if (xTaskCreate(link_task, "levoit_link", TASK_STACK, nullptr, 5, nullptr) != pdPASS) {
     uart_driver_delete(UART_PORT);
     return ESP_ERR_NO_MEM;
   }
   return ESP_OK;
 }
 
-bool link_send(const Command &command) {
+bool link_write(const uint8_t *frame, size_t len) {
+  if (len < HEADER_LEN || len > MAX_FRAME_LEN)
+    return false;
+  if (frame[1] != TYPE_SEND) {
+    write_raw(frame, len);
+    return true;
+  }
   if (queue_count == QUEUE_SIZE) {
     ESP_LOGW(TAG, "command queue full");
     return false;
   }
-  queue[(queue_head + queue_count) % QUEUE_SIZE] = command;
+  Pending &slot = queue[(queue_head + queue_count) % QUEUE_SIZE];
+  memcpy(slot.bytes, frame, len);
+  slot.len = len;
   queue_count++;
   return true;
 }
 
 bool link_alive() {
-  return frame_seen.load() && now_ms() - last_frame_ms.load() < ALIVE_WINDOW_MS;
+  return frame_seen.load() && link_now_ms() - last_frame_ms.load() < ALIVE_WINDOW_MS;
 }
 
 } // namespace levoit_matter
