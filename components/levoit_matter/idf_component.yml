@@ -7,4 +7,4 @@ dependencies:
   levoit:
     git: https://github.com/tuct/levoit.git
     path: components/levoit
-    version: "70d6269b003a"
+    version: "16d531b24916"
