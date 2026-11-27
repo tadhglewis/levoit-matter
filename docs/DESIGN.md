@@ -2,27 +2,9 @@
 
 ## What it is
 
-One ESP-IDF application on Espressif's Matter SDK (`espressif/esp_matter` 1.6.1, ESP-IDF 5.5.6), running on the purifier's stock ESP32-SOLO-1C.
+One ESP-IDF application on Espressif's Matter SDK (`espressif/esp_matter` 1.6.1, ESP-IDF 5.5.6), running on the purifier's stock ESP32 (an ESP32-SOLO-1C on the Core 300S, an ESP32-C3 on Vital and Eleva).
 
-The purifier has its own controller, which runs the fan, the buttons and the display. The ESP32 is only the Wi-Fi side. We replace its firmware and leave the controller alone.
-
-```mermaid
-flowchart LR
-    subgraph Purifier
-        MCU[Purifier controller<br/>fan, buttons, display]
-        subgraph ESP32[ESP32, this firmware]
-            Levoit[levoit component<br/>UART protocol]
-            Coord[Purifier coordinator]
-            Matter[Matter endpoints]
-        end
-    end
-    Home[Apple Home]
-
-    MCU <-->|UART| Levoit
-    Levoit <--> Coord
-    Coord <--> Matter
-    Matter <-->|Matter over Wi-Fi| Home
-```
+The purifier has its own controller, which runs the fan, the buttons and the display. The ESP32 is only the Wi-Fi side. We replace its firmware and leave the controller alone. The [Code](#code) section has the architecture, including how this firmware and tuct's core divide the work.
 
 ## Why not ESPHome or HomeKit
 
@@ -56,15 +38,38 @@ Why it looks like this:
 
 | Part | Job |
 |---|---|
-| `levoit` (dependency) | [tuct/levoit](https://github.com/tuct/levoit)'s protocol core: framing, every model's status decoder and command builder, filter tracking. Pulled in by the component manager. |
-| `components/levoit_matter` | The purifier side, no Matter cluster code. The UART transport (acknowledge, retry, pacing), the bridge to the core, and mapping purifier state to Matter values. |
-| `main/purifier` | Owns purifier state. Turns requests into commands, handles the reset hold, drives the lights. |
+| `levoit` (dependency) | [tuct/levoit](https://github.com/tuct/levoit)'s protocol core: framing, every model's status decoder and command builder, acknowledgements, filter tracking, and the panel lights. Pulled in by the component manager. |
+| `components/levoit_matter` | The purifier side, no Matter cluster code. The UART transport (ack-wait, retry, pacing), the bridge that maps the core's state onto `PurifierState`, and the Matter mapping. |
+| `main/purifier` | The Matter-side state: turns controller requests into commands, holds a value for two seconds after asking, handles the reset hold and identify, and tracks the Wi-Fi light. The core drives the purifier; this decides what to ask of it. |
 | `main/matter_setup` | Builds the endpoints, turns controller writes into requests, pushes state into the clusters. |
 | `main/ota` | Update, log and filter endpoints, and the check that decides whether a new image stays. |
 | `main/commissionable_data` | Reads the setup code verifier from the factory partition. |
 | `main/device_info` | Vendor and product names, product URL, and child lock as LocalConfigDisabled. |
 
-Two tasks. The UART task owns the serial port and all purifier state. The Matter task owns every cluster. One queue runs each way between them, so neither touches the other's data.
+The stack, top to bottom. Our code and tuct's core both run on the ESP32; the core talks to the purifier's own controller over the UART our transport drives.
+
+```mermaid
+graph TB
+    Home["Apple Home / Matter controller"]
+    subgraph esp["ESP32, inside the purifier"]
+        direction TB
+        ms["main/matter_setup: Matter endpoints and clusters"]
+        pu["main/purifier: Matter-side state, requests to commands,<br/>reset hold, identify, Wi-Fi-light state"]
+        br["components/levoit_matter: bridge, core state to Matter,<br/>and UART transport, ack-wait / retry / pacing"]
+        core["tuct/levoit core, a dependency: framing, decode, acks,<br/>command builders, device state, filter tracking, lights"]
+    end
+    mcu["Purifier controller, the MCU"]
+    hw["Fan, PM2.5 sensor, buttons, panel lights"]
+
+    Home <-->|"Matter over Wi-Fi"| ms
+    ms <--> pu
+    pu <--> br
+    br <-->|"in-process calls"| core
+    core <-->|"UART frames, through the transport"| mcu
+    mcu <--> hw
+```
+
+Two tasks. The UART task owns the serial port, the core, and `PurifierState`. The Matter task owns every cluster. One queue runs each way between them, so neither touches the other's data.
 
 ```mermaid
 sequenceDiagram
@@ -98,7 +103,7 @@ sequenceDiagram
 - No timing tricks to guess what a controller meant. We tried two. The fix was the On/Off cluster.
 - Show what the panel shows. In Sleep and while off the panel is dark, so Display reads off, though the purifier keeps the setting. Turning Display on then fails, so the controller never shows it on and nothing changes out of sight. Matter's answer for a request the current state cannot carry out is a refusal, not a success the device then contradicts.
 - Leaving Sleep sends Manual only. The purifier keeps the last manual speed through Sleep and resumes it.
-- Whatever the firmware drives on the purifier, it sets once after boot. The filter light may have been left on by other firmware.
+- The panel lights are set once after boot, since other firmware may have left them on. The core does this: it sends the filter light off at startup, then shows it once the filter runs low.
 
 ## Models
 
@@ -106,13 +111,13 @@ This firmware started standalone, with its own decoder for the Core 300S UART pr
 
 So the protocol — framing, acknowledgements, every model's status decoder and command builder, filter tracking — lives in [tuct/levoit](https://github.com/tuct/levoit), pulled in by the ESP-IDF component manager (`components/levoit_matter/idf_component.yml`). This firmware maps the core's state to Matter.
 
-Nothing model-specific is kept here. The build picks a model (Kconfig), tells the core its name once, and reads the rest back from the core — speed count, Auto, air quality, display name; `ModelSpec` is just that runtime view. Adding a Core model is a Kconfig entry. Supported: Core 200S/300S/400S/600S, Sprout and EverestAir. Vital and Eleva need an ESP32-C3 build ([#7](https://github.com/tadhglewis/levoit-matter/issues/7)).
+Nothing model-specific is kept here. The build picks a model (Kconfig), tells the core its name once, and reads the rest back from the core — speed count, Auto, air quality, display name; `ModelSpec` is just that runtime view. Adding a model is a Kconfig entry and its UART pins. Supported: Core 200S/300S/400S/600S, Sprout and EverestAir on ESP32, and Vital 100S/200S and Eleva 300X on ESP32-C3. Only the Core 300S has run on hardware; the rest build but are untested. The Superior 6000S is a humidifier, a different Matter device type, tracked separately ([#21](https://github.com/tadhglewis/levoit-matter/issues/21)).
 
 ## Filter life
 
 The purifier's controller does not report it. Stock firmware tracked it on the ESP32, which is why a freshly flashed purifier reads 100%.
 
-The [core](https://github.com/tuct/levoit) tracks it: each minute it adds the model's airflow scaled by the current speed (Sleep counted as 63% of speed 1), against six months at full speed, and persists the count. This firmware reads the result (`FILTER_LIFE_LEFT`) and maps it to the HEPA filter cluster. Holding Sleep for three seconds clears it, as on stock. `tools/filter.sh` sets it to any value, through the core's set-percent.
+The [core](https://github.com/tuct/levoit) tracks it: each minute the fan runs, it adds the model's airflow at the current speed, carrying the sub-m³ remainder so the slowest speeds still count, toward the filter's rated life, six months at full speed by default, and persists the total. This firmware reads the result (`FILTER_LIFE_LEFT`) and maps it to the HEPA filter cluster. Holding Sleep for three seconds clears it, as on stock. `tools/filter.sh` sets it to any value, through the core's set-percent.
 
 ## Pairing and reset
 
@@ -159,7 +164,7 @@ Nothing tests the Matter side off the device.
 
 ## Resources
 
-Measured on the Core 300S on 2026-11-25, version 0.5.0, ESP-IDF 5.5.6 and esp-matter 1.6.1.
+Measured on the Core 300S on 2026-11-25, firmware 0.1.0, ESP-IDF 5.5.6 and esp-matter 1.6.1.
 
 | | Size | Of |
 |---|---|---|
