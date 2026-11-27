@@ -20,7 +20,7 @@ Commands assume macOS and run from the repo root, or from a bundle you unzipped.
 
 ## Before you start
 
-Update the purifier in the VeSync app one last time. After this firmware goes on, VeSync can never update the purifier's own controller again, and older controller firmware misreported PM2.5 and fan speed.
+Update the purifier in the VeSync app one last time. After this firmware goes on, VeSync can never update the purifier's own controller again, so take whatever the latest controller firmware is while you still can.
 
 Note the filter percentage VeSync shows. You will need it at the end.
 
