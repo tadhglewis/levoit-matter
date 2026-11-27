@@ -6,7 +6,7 @@
 
 #include <cstdint>
 
-namespace levoit {
+namespace levoit_matter {
 
 struct LinkHandlers {
   void (*on_status)(const PurifierState &state, uint32_t now_ms);
@@ -20,4 +20,4 @@ esp_err_t link_start(const ModelSpec &model, int tx_pin, int rx_pin,
 bool link_send(const Command &command);
 bool link_alive();
 
-} // namespace levoit
+} // namespace levoit_matter

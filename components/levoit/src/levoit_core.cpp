@@ -2,7 +2,7 @@
 
 #include <cstring>
 
-namespace levoit {
+namespace levoit_matter {
 
 constexpr uint8_t DISPLAY_FULL = 0x64;
 
@@ -168,4 +168,4 @@ Command command_wifi_led(WifiLed state) {
   return make_command(0x0129A1, payload, 6);
 }
 
-} // namespace levoit
+} // namespace levoit_matter

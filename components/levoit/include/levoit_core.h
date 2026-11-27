@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace levoit {
+namespace levoit_matter {
 
 enum class Mode : uint8_t { MANUAL = 0, SLEEP = 1, AUTO = 2 };
 enum class WifiLed : uint8_t { OFF, SOLID, BLINK };
@@ -91,4 +91,4 @@ Command command_child_lock(bool locked);
 Command command_filter_led(bool on);
 Command command_wifi_led(WifiLed state);
 
-} // namespace levoit
+} // namespace levoit_matter

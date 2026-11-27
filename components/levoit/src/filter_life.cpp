@@ -1,6 +1,6 @@
 #include "filter_life.h"
 
-namespace levoit {
+namespace levoit_matter {
 
 void FilterLife::load(uint32_t used_cadr, uint32_t runtime_minutes) {
   this->used_cadr_ = used_cadr;
@@ -56,4 +56,4 @@ uint8_t FilterLife::percent() const {
   return static_cast<uint8_t>(100 - static_cast<uint64_t>(this->used_cadr_) * 100 / capacity);
 }
 
-} // namespace levoit
+} // namespace levoit_matter

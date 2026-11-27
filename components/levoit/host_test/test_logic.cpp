@@ -6,7 +6,7 @@
 #include <cstdio>
 #include <cstring>
 
-using namespace levoit;
+using namespace levoit_matter;
 
 static int failures = 0;
 static int checks = 0;

@@ -4,7 +4,7 @@
 
 #include <cstdint>
 
-namespace levoit {
+namespace levoit_matter {
 
 enum class FanModeView : uint8_t { OFF = 0, HIGH = 3, AUTO = 5 };
 
@@ -88,4 +88,4 @@ private:
   uint32_t started_ms_{0};
 };
 
-} // namespace levoit
+} // namespace levoit_matter

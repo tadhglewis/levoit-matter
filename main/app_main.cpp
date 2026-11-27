@@ -38,12 +38,12 @@ extern "C" void app_main() {
   }
   ESP_ERROR_CHECK(err);
 
-  levoit::purifier_load();
-  ESP_LOGI(TAG, "%s, filter %u%%", levoit::purifier_model().name,
-           levoit::purifier_filter_percent());
+  levoit_matter::purifier_load();
+  ESP_LOGI(TAG, "%s, filter %u%%", levoit_matter::purifier_model().name,
+           levoit_matter::purifier_filter_percent());
 
   ESP_ERROR_CHECK(matter_setup_start());
-  ESP_ERROR_CHECK(levoit::purifier_start({matter_publish, matter_factory_reset}));
+  ESP_ERROR_CHECK(levoit_matter::purifier_start({matter_publish, matter_factory_reset}));
   ota_health_start();
 
   log_resources();

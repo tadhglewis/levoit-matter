@@ -1,6 +1,6 @@
 #include "purifier_map.h"
 
-namespace levoit {
+namespace levoit_matter {
 
 bool MatterView::operator==(const MatterView &other) const {
   return this->fan_mode == other.fan_mode &&
@@ -277,4 +277,4 @@ bool HoldReset::due(uint32_t now_ms) {
   return true;
 }
 
-} // namespace levoit
+} // namespace levoit_matter

@@ -4,7 +4,7 @@
 
 #include <cstdint>
 
-namespace levoit {
+namespace levoit_matter {
 
 class FilterLife {
 public:
@@ -30,4 +30,4 @@ private:
   uint32_t runtime_minutes_{0};
 };
 
-} // namespace levoit
+} // namespace levoit_matter
